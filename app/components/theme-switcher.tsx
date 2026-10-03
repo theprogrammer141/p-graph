@@ -14,7 +14,7 @@ export function ThemeSwitcher() {
   }, []);
 
   if (!mounted) {
-    return <div className="w-[74px] h-7" />;
+    return <div className="w-18.5 h-7" />;
   }
 
   return (
