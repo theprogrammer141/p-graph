@@ -5,11 +5,49 @@
 :root {
   --background: #fafafa;
   --foreground: #09090b;
+  /* The four colour decisions; everything else on the map is greyscale. */
+  --pg-accent: #2563eb;
+  --pg-in: #16a34a;
+  --pg-out: #d97706;
+  --pg-edge: #a1a1aa;
 }
 
 .dark {
   --background: #09090b;
   --foreground: #f4f4f5;
+  --pg-accent: #60a5fa;
+  --pg-in: #4ade80;
+  --pg-out: #fbbf24;
+  --pg-edge: #52525b;
+}
+
+/* Handles are attachment points only; nothing is connectable by hand. */
+.pg-handle.react-flow__handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(161, 161, 170, 0.3) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.3);
+  border-radius: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.5);
 }
 
 @theme inline {

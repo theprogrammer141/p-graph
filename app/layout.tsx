@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ClerkProvider, SignInButton, SignUpButton, OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
@@ -35,13 +36,19 @@ export default async function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <header className="flex justify-between items-center px-4 h-11 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xs sticky top-0 z-20 text-xs">
               <div className="flex items-center gap-2.5">
-                <span className="font-mono text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                <Link href="/" className="font-mono text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                   <span className="inline-block w-2 h-2 rounded-xs bg-zinc-900 dark:bg-zinc-100" />
                   p-graph
-                </span>
+                </Link>
                 <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-600 px-1 py-0.5 border border-zinc-200 dark:border-zinc-800 rounded-xs">
                   v0.1
                 </span>
+                <Link
+                  href="/preview"
+                  className="text-[11px] font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors ml-1"
+                >
+                  preview
+                </Link>
               </div>
               <div className="flex items-center gap-2.5">
                 {!userId ? (
