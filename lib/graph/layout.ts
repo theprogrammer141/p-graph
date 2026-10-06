@@ -7,6 +7,7 @@ import dagre from "@dagrejs/dagre";
 import type { Edge, FileNode } from "../../parser/types.ts";
 import { fold, groupStats, visibleEdges, type FoldResult, type NodeStats } from "./fold.ts";
 import { relativeTo, shortestUnique } from "./labels.ts";
+import { extensionOf } from "../file-categories.ts";
 
 // Pixel metrics. Character widths are for 11px/10px monospace; widths come
 // from text so a long name never reads as a heavy node.
@@ -42,6 +43,7 @@ export interface CanvasNode {
   height: number;
   /** Empty when folded. */
   rows: Row[];
+  categoryCounts: Map<string, number>;
 }
 
 export interface CanvasEdge {
@@ -111,11 +113,17 @@ export function buildCanvas(
   const sized = folded.groups.map((g) => {
     const label = labels.get(g.dir) ?? g.dir;
     const s = stats.get(g.dir) ?? { fanIn: 0, fanOut: 0 };
+    const categoryCounts = new Map<string, number>();
+    for (const f of g.files) {
+      const ext = extensionOf(f);
+      categoryCounts.set(ext, (categoryCounts.get(ext) ?? 0) + 1);
+    }
 
     if (!open.has(g.dir)) {
       const textW = Math.max(label.length * CHAR_W, foldedMeta(g.files.length).length * META_CHAR_W);
       return {
         id: g.dir, label, open: false, fileCount: g.files.length, stats: s, rows: [] as Row[],
+        categoryCounts,
         width: Math.max(MIN_W, Math.ceil(textW + PAD_X * 2)),
         height: foldedHeight(s.fanIn),
       };
@@ -141,6 +149,7 @@ export function buildCanvas(
     const rowsW = Math.max(...rows.map((r) => (r.kind === "file" ? r.label.length * CHAR_W : 12 * CHAR_W)));
     return {
       id: g.dir, label, open: true, fileCount: g.files.length, stats: s, rows,
+      categoryCounts,
       width: Math.min(MAX_PANEL_W, Math.max(MIN_W, Math.ceil(Math.max(headerW, rowsW + ROW_EXTRAS_W) + PAD_X * 2))),
       height: HEADER_H + visibleRows * ROW_H + 4,
     };

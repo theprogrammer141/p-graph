@@ -70,11 +70,32 @@ type NodeData = {
   selection: SelectionTarget;
   hoveredTarget: string | null;
   groupOf: ReadonlyMap<string, string>;
+  selectedCategory: string | null;
 };
 type FoldedFlowNode = FlowNode<NodeData, "folded">;
 type PanelFlowNode = FlowNode<NodeData, "panel">;
 
-function Counts({ model }: { model: CanvasNode }) {
+function Counts({
+  model,
+  selectedCategory,
+  matchCount,
+}: {
+  model: CanvasNode;
+  selectedCategory: string | null;
+  matchCount: number;
+}) {
+  if (selectedCategory) {
+    return (
+      <span className="font-mono text-[10px] tabular-nums whitespace-nowrap flex items-center gap-2">
+        <span className="text-(--pg-accent) font-semibold">
+          {matchCount} matched
+        </span>
+        <span className="text-zinc-500 dark:text-zinc-400">
+          ({model.fileCount} total)
+        </span>
+      </span>
+    );
+  }
   return (
     <span className="font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
       {model.fileCount} files{"  "}
@@ -86,21 +107,26 @@ function Counts({ model }: { model: CanvasNode }) {
 
 const FoldedNode = memo(function FoldedNode({ data }: NodeProps<FoldedFlowNode>) {
   const { open, hover } = useActions();
-  const { model, lit, selection, hoveredTarget, groupOf } = data;
+  const { model, lit, selection, hoveredTarget, groupOf, selectedCategory } = data;
+  const matchCount = selectedCategory ? (model.categoryCounts.get(selectedCategory) ?? 0) : 0;
+  const categoryMatch = selectedCategory ? matchCount > 0 : true;
+
   const isSelected = selection?.kind === "folder" && selection.dir === model.id;
   const isHovered =
     hoveredTarget === model.id ||
     (hoveredTarget ? groupOf.get(hoveredTarget) === model.id : false);
-  const isLit = lit.all || isSelected || isHovered || lit.nodes.has(model.id);
+  const isLit = (lit.all || isSelected || isHovered || lit.nodes.has(model.id)) && categoryMatch;
 
   return (
     <div
       onClick={() => open(model.id)}
       onMouseEnter={() => hover(model.id)}
       onMouseLeave={() => hover(null)}
-      title={`${model.id}\n${model.fileCount} files · in ${model.stats.fanIn} · out ${model.stats.fanOut}`}
+      title={`${model.id}\n${model.fileCount} files · in ${model.stats.fanIn} · out ${model.stats.fanOut}${
+        selectedCategory ? `\n${matchCount} matching ${selectedCategory}` : ""
+      }`}
       style={{ width: model.width, height: model.height, opacity: isLit ? 1 : 0.25 }}
-      className={`pointer-events-auto flex flex-col justify-center px-2.5 rounded-xs border bg-white dark:bg-zinc-900 cursor-pointer transition-[border-color,box-shadow] ${
+      className={`pointer-events-auto flex flex-col justify-center px-2.5 rounded-xs border bg-white dark:bg-zinc-900 cursor-pointer transition-[border-color,box-shadow,opacity] ${
         isSelected
           ? "border-(--pg-accent) ring-1 ring-(--pg-accent)"
           : isHovered
@@ -110,7 +136,9 @@ const FoldedNode = memo(function FoldedNode({ data }: NodeProps<FoldedFlowNode>)
     >
       <Handle type="target" position={Position.Left} id={handleIn()} className="pg-handle" isConnectable={false} />
       <span className="font-mono text-[11px] leading-tight font-medium text-zinc-900 dark:text-zinc-100 truncate">{model.label}</span>
-      <span className="font-mono text-[10px] leading-tight tabular-nums text-zinc-500 dark:text-zinc-400">{foldedMeta(model.fileCount)}</span>
+      <span className="font-mono text-[10px] leading-tight tabular-nums text-zinc-500 dark:text-zinc-400">
+        {selectedCategory ? `${matchCount} of ${model.fileCount} files` : foldedMeta(model.fileCount)}
+      </span>
       <Handle type="source" position={Position.Right} id={handleOut()} className="pg-handle" isConnectable={false} />
     </div>
   );
@@ -120,12 +148,17 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
   const { close, selectFile, hover } = useActions();
   const updateNodeInternals = useUpdateNodeInternals();
   const [scrollTop, setScrollTop] = useState(0);
-  const { model, lit, selection, hoveredTarget } = data;
+  const { model, lit, selection, hoveredTarget, selectedCategory } = data;
+  const matchCount = selectedCategory ? (model.categoryCounts.get(selectedCategory) ?? 0) : 0;
+  const categoryMatch = selectedCategory ? matchCount > 0 : true;
+
   const isSelectedFolder = selection?.kind === "folder" && selection.dir === model.id;
   const isSelectedFileInFolder = selection?.kind === "file" && model.rows.some((r) => r.id === selection.path);
   const isHoveredNode = hoveredTarget === model.id;
   const hasLitRow = model.rows.some((r) => lit.rows.has(rowKey(model.id, r.id)));
-  const panelLit = lit.all || isSelectedFolder || isSelectedFileInFolder || isHoveredNode || lit.nodes.has(model.id) || hasLitRow;
+  const panelLit =
+    (lit.all || isSelectedFolder || isSelectedFileInFolder || isHoveredNode || lit.nodes.has(model.id) || hasLitRow) &&
+    categoryMatch;
 
   const visibleHeight = model.height - HEADER_H - 4;
   const visibleRows = Math.max(1, Math.floor(visibleHeight / ROW_H));
@@ -137,7 +170,7 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
   return (
     <div
       style={{ width: model.width, height: model.height, opacity: panelLit ? 1 : 0.25 }}
-      className={`pointer-events-auto rounded-xs border bg-white dark:bg-zinc-900 overflow-hidden flex flex-col transition-[border-color,box-shadow] ${
+      className={`pointer-events-auto rounded-xs border bg-white dark:bg-zinc-900 overflow-hidden flex flex-col transition-[border-color,box-shadow,opacity] ${
         isSelectedFolder
           ? "border-(--pg-accent) ring-1 ring-(--pg-accent)"
           : isHoveredNode
@@ -155,7 +188,7 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
         className="shrink-0 w-full flex items-center justify-between gap-3 px-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
       >
         <span className="font-mono text-[11px] font-medium text-zinc-900 dark:text-zinc-100 truncate">{model.label}</span>
-        <Counts model={model} />
+        <Counts model={model} selectedCategory={selectedCategory} matchCount={matchCount} />
       </button>
       <div
         className="nowheel nodrag flex-1 overflow-y-auto overflow-x-hidden min-h-0 select-none scrollbar-thin"
@@ -165,7 +198,9 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
           const key = rowKey(model.id, row.id);
           const isSelectedRow = selection?.kind === "file" && selection.path === row.id;
           const isRowHovered = hoveredTarget === row.id;
-          const isRowLit = lit.all || isSelectedFolder || isSelectedRow || isRowHovered || lit.rows.has(key);
+          const rowMatchesCat = selectedCategory && row.kind === "file" ? extensionOf(row.path) === selectedCategory : true;
+          const isRowLit =
+            (lit.all || isSelectedFolder || isSelectedRow || isRowHovered || lit.rows.has(key)) && rowMatchesCat;
           const rowTop = i * ROW_H - scrollTop;
           const clampedRowTop = Math.max(0, Math.min((visibleRows - 1) * ROW_H, rowTop));
           const handleTranslateY = clampedRowTop - rowTop;
@@ -173,7 +208,7 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
           return (
             <div
               key={row.id}
-              style={{ height: ROW_H, opacity: panelLit && !isRowLit ? 0.3 : 1 }}
+              style={{ height: ROW_H, opacity: isRowLit ? 1 : 0.25 }}
               onClick={(e) => {
                 if (row.kind !== "file") return;
                 e.stopPropagation();
@@ -306,6 +341,7 @@ interface CanvasProps {
   openCount: number;
   selection: SelectionTarget;
   hoveredTarget: string | null;
+  selectedCategory?: string | null;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
   onSelectFile: (path: string) => void;
@@ -321,6 +357,7 @@ function Canvas({
   openCount,
   selection,
   hoveredTarget,
+  selectedCategory,
   onOpen,
   onClose,
   onSelectFile,
@@ -364,21 +401,29 @@ function Canvas({
 
   const flowNodes = useMemo<(FoldedFlowNode | PanelFlowNode)[]>(
     () =>
-      canvas.nodes.map((n) => ({
-        id: n.id,
-        type: n.open ? "panel" : "folded",
-        position: { x: n.x, y: n.y },
-        width: n.width,
-        height: n.height,
-        data: {
-          model: n,
-          lit,
-          selection,
-          hoveredTarget,
-          groupOf: prepared.fold.groupOf,
-        },
-      })),
-    [canvas.nodes, lit, selection, hoveredTarget, prepared.fold.groupOf],
+      canvas.nodes.map((n) => {
+        const isSelected =
+          (selection?.kind === "folder" && selection.dir === n.id) ||
+          (selection?.kind === "file" && (prepared.fold.groupOf.get(selection.path) ?? ".") === n.id);
+        const zIndex = n.open ? (isSelected ? 30 : 20) : isSelected ? 5 : 2;
+        return {
+          id: n.id,
+          type: n.open ? "panel" : "folded",
+          position: { x: n.x, y: n.y },
+          width: n.width,
+          height: n.height,
+          zIndex,
+          data: {
+            model: n,
+            lit,
+            selection,
+            hoveredTarget,
+            groupOf: prepared.fold.groupOf,
+            selectedCategory: selectedCategory ?? null,
+          },
+        };
+      }),
+    [canvas.nodes, lit, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory],
   );
 
   const flowEdges = useMemo<FlowEdge[]>(
@@ -399,6 +444,17 @@ function Canvas({
           }
         }
 
+        let categoryDim = false;
+        if (selectedCategory) {
+          const sRow = rowOfHandle(e.sourceHandle);
+          const tRow = rowOfHandle(e.targetHandle);
+          const sExt = sRow ? extensionOf(sRow) : null;
+          const tExt = tRow ? extensionOf(tRow) : null;
+          if (sExt !== selectedCategory && tExt !== selectedCategory) {
+            categoryDim = true;
+          }
+        }
+
         const stroke = connectsHover
           ? "var(--pg-accent)"
           : side.target && !side.source
@@ -413,11 +469,13 @@ function Canvas({
 
         const opacity = connectsHover
           ? 1
+          : categoryDim
+          ? 0.08
           : selection === null || touching
           ? 1
           : 0.12;
 
-        const zIndex = connectsHover ? 10 : touching ? 1 : 0;
+        const zIndex = connectsHover ? 3 : touching ? 2 : 1;
 
         return {
           id: e.id,
@@ -434,7 +492,7 @@ function Canvas({
           },
         };
       }),
-    [canvas.edges, selection, hoveredTarget, prepared.fold.groupOf],
+    [canvas.edges, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory],
   );
 
   const { fold: folded, undrawnEdges } = prepared;
@@ -484,6 +542,7 @@ export interface GraphCanvasProps {
   openCount: number;
   selection: SelectionTarget;
   hoveredTarget: string | null;
+  selectedCategory?: string | null;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
   onSelectFile: (path: string) => void;

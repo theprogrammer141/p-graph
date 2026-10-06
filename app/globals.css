@@ -50,6 +50,14 @@
   background: rgba(161, 161, 170, 0.5);
 }
 
+/* Edges render behind nodes so connections never obscure expanded folders */
+.react-flow .react-flow__edges {
+  z-index: 0 !important;
+}
+.react-flow__node-panel {
+  z-index: 20;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

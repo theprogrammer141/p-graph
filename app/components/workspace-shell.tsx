@@ -9,6 +9,7 @@ import {
   buildFolderDetail,
   buildRepoSummary,
 } from "@/lib/graph/detail";
+import { buildInsights } from "@/lib/graph/maths";
 import { GraphCanvas } from "./graph-canvas";
 import { DetailPane } from "./detail-pane";
 
@@ -41,6 +42,7 @@ export function WorkspaceShell({
   const [activeTab, setActiveTab] = useState<"structure" | "explanation">("structure");
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [openCount, setOpenCount] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const prepared = useMemo(() => prepare(files, edges), [files, edges]);
   const filesByPath = useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
@@ -49,6 +51,8 @@ export function WorkspaceShell({
     () => buildRepoSummary(files, edges, { repoName, adapter }),
     [files, edges, repoName, adapter],
   );
+
+  const insights = useMemo(() => buildInsights(files, edges), [files, edges]);
 
   const fileDetail = useMemo(
     () =>
@@ -104,6 +108,10 @@ export function WorkspaceShell({
     setHoveredTarget(target);
   };
 
+  const handleToggleCategory = (ext: string) => {
+    setSelectedCategory((prev) => (prev === ext ? null : ext));
+  };
+
   return (
     <div className="flex-1 w-full h-[calc(100vh-2.75rem)] flex overflow-hidden bg-background text-foreground text-xs select-none">
       {/* Left rail: narrow column listing categories of file */}
@@ -112,29 +120,50 @@ export function WorkspaceShell({
           <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-medium">
             Categories
           </span>
-          <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 tabular-nums">
-            {totalFiles} files
-          </span>
+          {selectedCategory ? (
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className="font-mono text-[10px] text-(--pg-accent) hover:underline cursor-pointer"
+            >
+              Reset
+            </button>
+          ) : (
+            <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 tabular-nums">
+              {totalFiles} files
+            </span>
+          )}
         </div>
 
         <div className="p-2 space-y-0.5 overflow-y-auto flex-1">
-          {categories.map((cat) => (
-            <div
-              key={cat.extension}
-              className="flex items-center justify-between px-2 py-1.5 rounded-xs text-xs font-mono text-zinc-700 dark:text-zinc-300"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className="w-2 h-2 rounded-xs shrink-0"
-                  style={{ backgroundColor: cat.colorHex }}
-                />
-                <span className="truncate">{cat.extension}</span>
-              </div>
-              <span className="text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums ml-2 shrink-0">
-                {cat.count}
-              </span>
-            </div>
-          ))}
+          {categories.map((cat) => {
+            const isCatActive = selectedCategory === cat.extension;
+            return (
+              <button
+                type="button"
+                key={cat.extension}
+                onClick={() => handleToggleCategory(cat.extension)}
+                className={`w-full flex items-center justify-between px-2 py-1.5 rounded-xs text-xs font-mono cursor-pointer transition-colors ${
+                  isCatActive
+                    ? "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 font-medium ring-1 ring-(--pg-accent)"
+                    : selectedCategory
+                    ? "text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-2 h-2 rounded-xs shrink-0"
+                    style={{ backgroundColor: cat.colorHex }}
+                  />
+                  <span className="truncate">{cat.extension}</span>
+                </div>
+                <span className="text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums ml-2 shrink-0">
+                  {cat.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </aside>
 
@@ -167,6 +196,7 @@ export function WorkspaceShell({
             openCount={openCount}
             selection={selection}
             hoveredTarget={hoveredTarget}
+            selectedCategory={selectedCategory}
             onOpen={handleOpen}
             onClose={handleClose}
             onSelectFile={handleSelectFile}
@@ -183,6 +213,8 @@ export function WorkspaceShell({
         repoSummary={repoSummary}
         fileDetail={fileDetail}
         folderDetail={folderDetail}
+        insights={insights}
+        edges={edges}
         activeTab={activeTab}
         hoveredTarget={hoveredTarget}
         groupOfFile={(p) => prepared.fold.groupOf.get(p)}
