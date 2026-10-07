@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import type { CategorySummary } from "@/lib/file-categories";
-import type { Edge, FileNode } from "@/parser/types";
+import type { Edge, FileNode, Coverage } from "@/parser/types";
 import { prepare } from "@/lib/graph/layout";
 import {
   buildFileDetail,
@@ -12,6 +12,7 @@ import {
 import { buildInsights } from "@/lib/graph/maths";
 import { GraphCanvas } from "./graph-canvas";
 import { DetailPane } from "./detail-pane";
+import { CoverageBanner } from "./coverage-banner";
 
 export type SelectionTarget =
   | { kind: "file"; path: string }
@@ -26,6 +27,7 @@ interface WorkspaceShellProps {
   repoName?: string;
   adapter?: string;
   edgeCount?: number;
+  coverage?: Coverage | null;
 }
 
 export function WorkspaceShell({
@@ -36,6 +38,7 @@ export function WorkspaceShell({
   repoName = "preact",
   adapter = "none",
   edgeCount,
+  coverage,
 }: WorkspaceShellProps) {
   const [selection, setSelection] = useState<SelectionTarget>(null);
   const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
@@ -186,6 +189,8 @@ export function WorkspaceShell({
             )}
           </div>
         </div>
+
+        {coverage && <CoverageBanner coverage={coverage} />}
 
         <div className="flex-1 relative overflow-hidden">
           <GraphCanvas

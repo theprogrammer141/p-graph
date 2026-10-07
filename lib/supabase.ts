@@ -24,3 +24,24 @@ export async function createClerkSupabaseClient() {
     accessToken: async () => (await getToken()) ?? null,
   });
 }
+
+// Server-only admin client using SUPABASE_SECRET_KEY (bypasses RLS).
+// Used for offline verification scripts or background pipeline tasks.
+export function createAdminSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+
+  if (!supabaseUrl || !secretKey) {
+    throw new Error(
+      "Missing Supabase admin environment variables. NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY must be set."
+    );
+  }
+
+  return createClient<Database>(supabaseUrl, secretKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+

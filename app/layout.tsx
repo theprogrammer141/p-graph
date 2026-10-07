@@ -43,12 +43,6 @@ export default async function RootLayout({
                 <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-600 px-1 py-0.5 border border-zinc-200 dark:border-zinc-800 rounded-xs">
                   v0.1
                 </span>
-                <Link
-                  href="/preview"
-                  className="text-[11px] font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors ml-1"
-                >
-                  preview
-                </Link>
               </div>
               <div className="flex items-center gap-2.5">
                 {!userId ? (

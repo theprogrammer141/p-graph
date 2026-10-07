@@ -363,7 +363,7 @@ export class Resolver {
 
     let config: LoadedConfig | null = null;
     for (const name of CONFIG_NAMES) {
-      const candidate = path.join(absDir, name);
+      const candidate = path.join(/*turbopackIgnore: true*/ absDir, name);
       if (isFile(candidate)) {
         config = this.loadConfig(candidate);
         break;

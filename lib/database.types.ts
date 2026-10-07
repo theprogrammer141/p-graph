@@ -18,33 +18,48 @@ export type Database = {
     Tables: {
       analyses: {
         Row: {
+          adapter: string | null
           commit_sha: string | null
+          coverage: Json | null
           created_at: string
           error: string | null
+          failed_stage: string | null
           finished_at: string | null
           id: string
           org_id: string
           project_id: string
+          stage: string | null
+          stage_message: string | null
           status: string
         }
         Insert: {
+          adapter?: string | null
           commit_sha?: string | null
+          coverage?: Json | null
           created_at?: string
           error?: string | null
+          failed_stage?: string | null
           finished_at?: string | null
           id?: string
           org_id: string
           project_id: string
+          stage?: string | null
+          stage_message?: string | null
           status?: string
         }
         Update: {
+          adapter?: string | null
           commit_sha?: string | null
+          coverage?: Json | null
           created_at?: string
           error?: string | null
+          failed_stage?: string | null
           finished_at?: string | null
           id?: string
           org_id?: string
           project_id?: string
+          stage?: string | null
+          stage_message?: string | null
           status?: string
         }
         Relationships: [
@@ -72,6 +87,7 @@ export type Database = {
           org_id: string
           source_file_id: string
           target_file_id: string
+          type_only: boolean
         }
         Insert: {
           analysis_id: string
@@ -80,6 +96,7 @@ export type Database = {
           org_id: string
           source_file_id: string
           target_file_id: string
+          type_only?: boolean
         }
         Update: {
           analysis_id?: string
@@ -88,6 +105,7 @@ export type Database = {
           org_id?: string
           source_file_id?: string
           target_file_id?: string
+          type_only?: boolean
         }
         Relationships: [
           {
@@ -222,20 +240,26 @@ export type Database = {
         Row: {
           analysis_id: string
           id: string
+          lines: number
           org_id: string
           path: string
+          sha256: string | null
         }
         Insert: {
           analysis_id: string
           id?: string
+          lines?: number
           org_id: string
           path: string
+          sha256?: string | null
         }
         Update: {
           analysis_id?: string
           id?: string
+          lines?: number
           org_id?: string
           path?: string
+          sha256?: string | null
         }
         Relationships: [
           {
