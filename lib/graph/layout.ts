@@ -28,7 +28,7 @@ const ROW_EXTRAS_W = 46; // swatch, gap and the fan-in figure
 export const ROOT_LABEL = "(root)";
 
 export type Row =
-  | { kind: "file"; id: string; path: string; label: string; fanIn: number }
+  | { kind: "file"; id: string; path: string; label: string; fanIn: number; role?: string }
   | { kind: "more"; id: string; count: number };
 
 export interface CanvasNode {
@@ -60,6 +60,7 @@ export interface Prepared {
   fold: FoldResult;
   stats: Map<string, NodeStats>;
   fileFanIn: Map<string, number>;
+  fileRoles: Map<string, string>;
   labels: Map<string, string>;
   /** File edges with an unplaced file at either end; they have nothing to attach to. */
   undrawnEdges: number;
@@ -76,6 +77,7 @@ export function prepare(files: readonly FileNode[], edges: readonly Edge[]): Pre
     fold: folded,
     stats: groupStats(edges, folded.groupOf),
     fileFanIn: new Map(files.map((f) => [f.path, f.fanIn])),
+    fileRoles: new Map(files.map((f) => [f.path, f.role ?? "Generic"])),
     labels,
     undrawnEdges: edges.filter((e) => unplaced.has(e.from) || unplaced.has(e.to)).length,
   };
@@ -105,7 +107,7 @@ export function buildCanvas(
   edges: readonly Edge[],
   open: ReadonlySet<string>,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const { fold: folded, stats, fileFanIn, labels } = prepared;
+  const { fold: folded, stats, fileFanIn, fileRoles, labels } = prepared;
 
   // Which row each file lands on, for open panels.
   const rowOfFile = new Map<string, string>();
@@ -117,6 +119,10 @@ export function buildCanvas(
     for (const f of g.files) {
       const ext = extensionOf(f);
       categoryCounts.set(ext, (categoryCounts.get(ext) ?? 0) + 1);
+      const role = fileRoles?.get(f);
+      if (role) {
+        categoryCounts.set(role, (categoryCounts.get(role) ?? 0) + 1);
+      }
     }
 
     if (!open.has(g.dir)) {
@@ -141,6 +147,7 @@ export function buildCanvas(
       path,
       label: rel.get(relativeTo(g.dir, path)) ?? path,
       fanIn: fileFanIn.get(path) ?? 0,
+      role: fileRoles?.get(path),
     }));
     for (const f of ordered) rowOfFile.set(f, f);
 

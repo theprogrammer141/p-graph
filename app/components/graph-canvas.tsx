@@ -26,6 +26,7 @@ import {
 } from "react";
 
 import { colorOf, extensionOf } from "@/lib/file-categories";
+import { colorOfRole } from "@/lib/taxonomy";
 import {
   buildCanvas,
   rowOfHandle,
@@ -71,6 +72,7 @@ type NodeData = {
   hoveredTarget: string | null;
   groupOf: ReadonlyMap<string, string>;
   selectedCategory: string | null;
+  adapter?: string;
 };
 type FoldedFlowNode = FlowNode<NodeData, "folded">;
 type PanelFlowNode = FlowNode<NodeData, "panel">;
@@ -198,7 +200,9 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
           const key = rowKey(model.id, row.id);
           const isSelectedRow = selection?.kind === "file" && selection.path === row.id;
           const isRowHovered = hoveredTarget === row.id;
-          const rowMatchesCat = selectedCategory && row.kind === "file" ? extensionOf(row.path) === selectedCategory : true;
+          const rowMatchesCat = selectedCategory && row.kind === "file"
+            ? (row.role === selectedCategory || extensionOf(row.path) === selectedCategory)
+            : true;
           const isRowLit =
             (lit.all || isSelectedFolder || isSelectedRow || isRowHovered || lit.rows.has(key)) && rowMatchesCat;
           const rowTop = i * ROW_H - scrollTop;
@@ -242,7 +246,15 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
               />
               {row.kind === "file" ? (
                 <>
-                  <span className="w-1.5 h-1.5 rounded-xs shrink-0" style={{ backgroundColor: colorOf(extensionOf(row.path)) }} />
+                  <span
+                    className="w-1.5 h-1.5 rounded-xs shrink-0"
+                    style={{
+                      backgroundColor:
+                        row.role && row.role !== "Generic"
+                          ? colorOfRole(row.role, data.adapter ?? "")
+                          : colorOf(extensionOf(row.path)),
+                    }}
+                  />
                   <span className="truncate flex-1" title={row.path}>{row.label}</span>
                   <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" title="files that import this one">
                     {row.fanIn}
@@ -342,6 +354,7 @@ interface CanvasProps {
   selection: SelectionTarget;
   hoveredTarget: string | null;
   selectedCategory?: string | null;
+  adapter?: string;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
   onSelectFile: (path: string) => void;
@@ -358,6 +371,7 @@ function Canvas({
   selection,
   hoveredTarget,
   selectedCategory,
+  adapter,
   onOpen,
   onClose,
   onSelectFile,
@@ -375,6 +389,7 @@ function Canvas({
   }, []);
 
   const canvas = useMemo(() => buildCanvas(prepared, edges, open), [prepared, edges, open]);
+  const nodeById = useMemo(() => new Map(canvas.nodes.map((n) => [n.id, n])), [canvas.nodes]);
   const lit = useMemo(() => computeLit(canvas.edges, selection, prepared.fold.groupOf), [canvas.edges, selection, prepared.fold.groupOf]);
 
   const actions = useMemo<Actions>(
@@ -420,10 +435,11 @@ function Canvas({
             hoveredTarget,
             groupOf: prepared.fold.groupOf,
             selectedCategory: selectedCategory ?? null,
+            adapter,
           },
         };
       }),
-    [canvas.nodes, lit, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory],
+    [canvas.nodes, lit, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory, adapter],
   );
 
   const flowEdges = useMemo<FlowEdge[]>(
@@ -448,9 +464,19 @@ function Canvas({
         if (selectedCategory) {
           const sRow = rowOfHandle(e.sourceHandle);
           const tRow = rowOfHandle(e.targetHandle);
+          const sRole = sRow ? prepared.fileRoles?.get(sRow) : null;
+          const tRole = tRow ? prepared.fileRoles?.get(tRow) : null;
           const sExt = sRow ? extensionOf(sRow) : null;
           const tExt = tRow ? extensionOf(tRow) : null;
-          if (sExt !== selectedCategory && tExt !== selectedCategory) {
+
+          const sMatch = sRow
+            ? sRole === selectedCategory || sExt === selectedCategory
+            : (nodeById.get(e.source)?.categoryCounts.get(selectedCategory) ?? 0) > 0;
+          const tMatch = tRow
+            ? tRole === selectedCategory || tExt === selectedCategory
+            : (nodeById.get(e.target)?.categoryCounts.get(selectedCategory) ?? 0) > 0;
+
+          if (!sMatch && !tMatch) {
             categoryDim = true;
           }
         }
@@ -492,7 +518,7 @@ function Canvas({
           },
         };
       }),
-    [canvas.edges, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory],
+    [canvas.edges, selection, hoveredTarget, prepared.fold.groupOf, selectedCategory, prepared.fileRoles, nodeById],
   );
 
   const { fold: folded, undrawnEdges } = prepared;
@@ -543,6 +569,7 @@ export interface GraphCanvasProps {
   selection: SelectionTarget;
   hoveredTarget: string | null;
   selectedCategory?: string | null;
+  adapter?: string;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
   onSelectFile: (path: string) => void;

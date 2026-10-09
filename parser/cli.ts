@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse } from "./index.ts";
-import { fallbackAdapter } from "./adapter.ts";
 
 function main() {
   const args = process.argv.slice(2);
@@ -21,7 +20,6 @@ function main() {
   const start = Date.now();
   
   const result = parse(root, {
-    adapters: [fallbackAdapter], // Just fallback for now per constraints
     onStartFile: () => {
       filesParsed++;
       if (filesParsed % 100 === 0) {

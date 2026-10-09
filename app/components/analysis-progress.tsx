@@ -160,7 +160,7 @@ export function AnalysisProgress({
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 failed in stage: {failedStage ?? "unknown"}
               </div>
-              <p className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 break-words leading-relaxed">
+              <p className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 wrap-break-word leading-relaxed">
                 {error ?? message}
               </p>
             </div>
@@ -211,7 +211,7 @@ export function AnalysisProgress({
               })}
             </div>
 
-            <div className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2.5 rounded-xs leading-relaxed break-words">
+            <div className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2.5 rounded-xs leading-relaxed wrap-break-word">
               {message}
             </div>
           </div>

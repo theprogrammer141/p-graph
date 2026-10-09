@@ -7,6 +7,7 @@ import type { PipelineStage } from "@/lib/pipeline/run";
 import { countCategories } from "@/lib/file-categories";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { AnalysisProgress } from "@/app/components/analysis-progress";
+import type { RouteItem } from "@/app/components/detail-pane";
 
 interface AnalysisPageProps {
   params: Promise<{ id: string }>;
@@ -61,26 +62,61 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     );
   }
 
-  // Status is complete: fetch real files and edges from Supabase
-  const [{ data: files, error: filesError }, { data: edges, error: edgesError }] =
-    await Promise.all([
-      supabase
-        .from("files")
-        .select("id, path, lines, sha256")
-        .eq("analysis_id", id),
-      supabase
-        .from("edges")
-        .select("id, source_file_id, target_file_id, kind, type_only")
-        .eq("analysis_id", id),
-    ]);
+  // Status is complete: fetch real files, edges, routes, and roles from Supabase
+  const [
+    { data: files, error: filesError },
+    { data: edges, error: edgesError },
+    { data: routesData, error: routesError },
+    { data: rolesData, error: rolesError },
+  ] = await Promise.all([
+    supabase
+      .from("files")
+      .select("id, path, lines, sha256")
+      .eq("analysis_id", id),
+    supabase
+      .from("edges")
+      .select("id, source_file_id, target_file_id, kind, type_only")
+      .eq("analysis_id", id),
+    supabase
+      .from("routes")
+      .select("id, file_id, method, path")
+      .eq("analysis_id", id),
+    supabase
+      .from("file_roles")
+      .select("id, file_id, role, source")
+      .eq("analysis_id", id),
+  ]);
 
-  if (filesError || edgesError) {
-    throw new Error(`Failed to load graph data: ${filesError?.message ?? edgesError?.message}`);
+  if (filesError || edgesError || routesError || rolesError) {
+    throw new Error(
+      `Failed to load graph data: ${
+        filesError?.message ?? edgesError?.message ?? routesError?.message ?? rolesError?.message
+      }`
+    );
   }
 
   const fileIdToPath = new Map<string, string>();
   for (const f of files ?? []) {
     fileIdToPath.set(f.id, f.path);
+  }
+
+  const fileRolesMap = new Map<string, string>();
+  for (const r of rolesData ?? []) {
+    const filePath = fileIdToPath.get(r.file_id);
+    if (filePath) {
+      fileRolesMap.set(filePath, r.role);
+    }
+  }
+
+  const reconstructedRoutes: RouteItem[] = [];
+  for (const r of routesData ?? []) {
+    const filePath = fileIdToPath.get(r.file_id) ?? "";
+    reconstructedRoutes.push({
+      id: r.id,
+      method: r.method,
+      path: r.path,
+      filePath,
+    });
   }
 
   const edgeMap = new Map<
@@ -125,6 +161,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     sha256: f.sha256 ?? "",
     fanIn: fanIn.get(f.path) ?? 0,
     fanOut: fanOut.get(f.path) ?? 0,
+    role: fileRolesMap.get(f.path),
   }));
 
   const categories = countCategories(reconstructedFiles);
@@ -141,6 +178,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
         adapter={analysis.adapter ?? "none"}
         repoName={project.name}
         coverage={coverage}
+        routes={reconstructedRoutes}
       />
     </main>
   );

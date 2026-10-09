@@ -1,12 +1,15 @@
 import { Project } from "ts-morph";
 
 import { chooseAdapter, type FrameworkAdapter } from "./adapter.ts";
+import { ALL_ADAPTERS } from "./adapters/index.ts";
 import { extractImports } from "./imports.ts";
 import { Resolver } from "./resolve.ts";
 import {
   SCHEMA_VERSION,
+  type AssignedRole,
   type Coverage,
   type Edge,
+  type ExtractedRoute,
   type FileNode,
   type ImportOutcome,
   type ImportRecord,
@@ -22,7 +25,7 @@ export interface ParseOptions {
 }
 
 export function parse(root: string, options?: ParseOptions): ParseResult {
-  const adapter = chooseAdapter(root, options?.adapters ?? []);
+  const adapter = chooseAdapter(root, options?.adapters ?? ALL_ADAPTERS);
   const walk = walkRepository(root, adapter);
 
   const warnings = [...walk.warnings];
@@ -65,10 +68,17 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
   });
 
   const imports: ImportRecord[] = [];
+  const routes: ExtractedRoute[] = [];
+  const roles: AssignedRole[] = [];
   let parsedCount = 0;
 
   for (const c of walk.candidates) {
     options?.onStartFile?.(c.path);
+    const role = adapter.assignRole ? adapter.assignRole(c.path, c.text) ?? "Generic" : "Generic";
+    const node = nodes.get(c.path);
+    if (node) node.role = role;
+    roles.push({ filePath: c.path, role });
+
     let sourceFile;
     try {
       sourceFile = project.createSourceFile(c.path, c.text, { overwrite: true });
@@ -92,6 +102,12 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
           typeOnly: ex.typeOnly,
           outcome,
         });
+      }
+      if (adapter.extractRoutes) {
+        const fileRoutes = adapter.extractRoutes(c.path, sourceFile);
+        if (fileRoutes && fileRoutes.length > 0) {
+          routes.push(...fileRoutes);
+        }
       }
       parsedCount++;
     } catch (err) {
@@ -150,6 +166,8 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
     skipped: walk.skipped,
     excludedDirectories: walk.excludedDirectories,
     imports,
+    routes,
+    roles,
     coverage,
     warnings,
   };

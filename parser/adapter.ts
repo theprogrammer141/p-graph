@@ -1,6 +1,11 @@
 // Framework knowledge lives behind this interface and nowhere else. The parser
 // asks the chosen adapter questions; it never asks which framework it is.
 
+import type { SourceFile } from "ts-morph";
+import type { AssignedRole, ExtractedRoute } from "./types.ts";
+
+export type { AssignedRole, ExtractedRoute };
+
 export interface FrameworkAdapter {
   readonly name: string;
   /** Whether this adapter recognises the repository at `root`. */
@@ -10,6 +15,16 @@ export interface FrameworkAdapter {
    * it, or null to walk into it. `relPath` is repo-relative with forward slashes.
    */
   excludeDirectory(relPath: string, name: string): string | null;
+  /**
+   * Assign a role to a source file, or null to leave generic.
+   * `relPath` is repo-relative with forward slashes.
+   */
+  assignRole?(relPath: string, fileText?: string): string | null;
+  /**
+   * Extract routes from a source file given its ts-morph SourceFile.
+   * Exact routes only; if anything cannot be recovered from syntax, emit nothing.
+   */
+  extractRoutes?(relPath: string, sourceFile: SourceFile): ExtractedRoute[];
 }
 
 // Directories that hold dependencies or build output in essentially every JS
@@ -27,6 +42,8 @@ export const fallbackAdapter: FrameworkAdapter = {
     if (BUILD_OUTPUT_DIRS.has(name)) return `build output (${name})`;
     return null;
   },
+  assignRole: () => "Generic",
+  extractRoutes: () => [],
 };
 
 export function chooseAdapter(

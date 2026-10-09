@@ -7,6 +7,13 @@ import type { Edge } from "@/parser/types";
 import { colorOf, extensionOf } from "@/lib/file-categories";
 import { transitiveWalk, type RepoInsights } from "@/lib/graph/maths";
 
+export interface RouteItem {
+  readonly id?: string;
+  readonly filePath: string;
+  readonly method: string;
+  readonly path: string;
+}
+
 interface DetailPaneProps {
   selection: SelectionTarget;
   repoSummary: RepoSummary;
@@ -14,6 +21,7 @@ interface DetailPaneProps {
   folderDetail: FolderDetail | null;
   insights: RepoInsights;
   edges: readonly Edge[];
+  routes?: readonly RouteItem[];
   activeTab: "structure" | "explanation";
   hoveredTarget: string | null;
   groupOfFile?: (path: string) => string | undefined;
@@ -30,6 +38,7 @@ export function DetailPane({
   folderDetail,
   insights,
   edges,
+  routes = [],
   activeTab,
   hoveredTarget,
   groupOfFile,
@@ -97,6 +106,7 @@ export function DetailPane({
             fileDetail={fileDetail}
             folderDetail={folderDetail}
             edges={edges}
+            routes={routes}
             isFileHovered={isFileHovered}
             onSelectFile={onSelectFile}
             onHover={onHover}
@@ -150,6 +160,7 @@ interface StructureTabProps {
   fileDetail: FileDetail | null;
   folderDetail: FolderDetail | null;
   edges: readonly Edge[];
+  routes: readonly RouteItem[];
   isFileHovered: (path: string) => boolean;
   onSelectFile: (path: string) => void;
   onHover: (target: string | null) => void;
@@ -161,6 +172,7 @@ function StructureTab({
   fileDetail,
   folderDetail,
   edges,
+  routes,
   isFileHovered,
   onSelectFile,
   onHover,
@@ -169,6 +181,7 @@ function StructureTab({
     return (
       <RepoSummaryView
         summary={repoSummary}
+        routes={routes}
         isFileHovered={isFileHovered}
         onSelectFile={onSelectFile}
         onHover={onHover}
@@ -181,6 +194,7 @@ function StructureTab({
       <FileDetailView
         detail={fileDetail}
         edges={edges}
+        routes={routes}
         isFileHovered={isFileHovered}
         onSelectFile={onSelectFile}
         onHover={onHover}
@@ -206,13 +220,38 @@ function StructureTab({
   );
 }
 
+function MethodBadge({ method }: { method: string }) {
+  const m = method.toUpperCase();
+  let badgeStyle = "text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700";
+  if (m === "GET") {
+    badgeStyle = "text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/70 border-sky-200 dark:border-sky-800";
+  } else if (m === "POST") {
+    badgeStyle = "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800";
+  } else if (m === "PUT") {
+    badgeStyle = "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800";
+  } else if (m === "DELETE") {
+    badgeStyle = "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-800";
+  } else if (m === "PATCH") {
+    badgeStyle = "text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/70 border-purple-200 dark:border-purple-800";
+  }
+  return (
+    <span
+      className={`px-1 py-0.5 rounded-xs border text-[9px] font-bold tracking-tight shrink-0 ${badgeStyle}`}
+    >
+      {m}
+    </span>
+  );
+}
+
 function RepoSummaryView({
   summary,
+  routes,
   isFileHovered,
   onSelectFile,
   onHover,
 }: {
   summary: RepoSummary;
+  routes: readonly RouteItem[];
   isFileHovered: (path: string) => boolean;
   onSelectFile: (path: string) => void;
   onHover: (target: string | null) => void;
@@ -272,6 +311,54 @@ function RepoSummaryView({
             {summary.unidentifiedCount}
           </div>
         </div>
+      </div>
+
+      {/* Extracted routes table */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">
+            Routes
+          </span>
+          <span className="font-mono text-[10px] text-zinc-400 tabular-nums">
+            {routes.length}
+          </span>
+        </div>
+
+        {routes.length === 0 ? (
+          <div className="p-2.5 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-center font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
+            No routes extracted
+          </div>
+        ) : (
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-900/50 max-h-56 overflow-y-auto scrollbar-thin divide-y divide-zinc-100 dark:divide-zinc-800/60 font-mono text-[11px]">
+            {routes.map((route, idx) => {
+              const isHovered = isFileHovered(route.filePath);
+              return (
+                <div
+                  key={`${route.method}-${route.path}-${route.filePath}-${idx}`}
+                  onClick={() => onSelectFile(route.filePath)}
+                  onMouseEnter={() => onHover(route.filePath)}
+                  onMouseLeave={() => onHover(null)}
+                  title={`${route.method} ${route.path} · ${route.filePath}`}
+                  className={`px-2 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                    isHovered
+                      ? "bg-zinc-200/80 dark:bg-zinc-800/80 text-zinc-950 dark:text-zinc-50 ring-1 ring-(--pg-accent)/60"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <MethodBadge method={route.method} />
+                    <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                      {route.path}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-24">
+                    {route.filePath.split("/").pop()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Ranked list 1: what the rest of the repository leans on most */}
@@ -378,12 +465,14 @@ function RepoSummaryView({
 function FileDetailView({
   detail,
   edges,
+  routes = [],
   isFileHovered,
   onSelectFile,
   onHover,
 }: {
   detail: FileDetail;
   edges: readonly Edge[];
+  routes?: readonly RouteItem[];
   isFileHovered: (path: string) => boolean;
   onSelectFile: (path: string) => void;
   onHover: (target: string | null) => void;
@@ -400,6 +489,11 @@ function FileDetailView({
   const depChainItems = useMemo(
     () => transitiveWalk(detail.path, edges, "dependency-chain", 2),
     [detail.path, edges]
+  );
+
+  const fileRoutes = useMemo(
+    () => routes.filter((r) => r.filePath === detail.path),
+    [routes, detail.path]
   );
 
   return (
@@ -425,6 +519,30 @@ function FileDetailView({
           </span>
         </div>
       </div>
+
+      {/* Declared routes if any */}
+      {fileRoutes.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">
+              Declared routes
+            </span>
+            <span className="font-mono text-[10px] text-zinc-400 tabular-nums">
+              {fileRoutes.length}
+            </span>
+          </div>
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-900/50 divide-y divide-zinc-100 dark:divide-zinc-800/60 font-mono text-[11px]">
+            {fileRoutes.map((r, i) => (
+              <div key={i} className="px-2 py-1.5 flex items-center gap-2">
+                <MethodBadge method={r.method} />
+                <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                  {r.path}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Fan metrics */}
       <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">

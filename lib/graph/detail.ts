@@ -2,8 +2,9 @@
 // No React, no Next.js, no DB. Path and edge in, view models out.
 
 import type { Edge, FileNode } from "@/parser/types";
-import { countRoutes, countUnidentified, kindOfFile } from "../conventions";
+import { countRoutes, kindOfFile } from "../conventions";
 import { colorOf, extensionOf } from "../file-categories";
+import { colorOfRole } from "../taxonomy";
 
 export interface RepoSummary {
   name: string;
@@ -57,15 +58,21 @@ export interface FolderDetail {
 export function buildRepoSummary(
   files: readonly FileNode[],
   edges: readonly Edge[],
-  options?: { repoName?: string; adapter?: string }
+  options?: { repoName?: string; adapter?: string; routeCount?: number }
 ): RepoSummary {
+  const adapter = options?.adapter ?? "none";
+  const framework =
+    adapter === "none" || !adapter ? "None detected" : adapter;
+
   const fileItems: FileItem[] = files.map((f) => {
     const ext = extensionOf(f.path);
+    const kind = f.role && f.role !== "Generic" ? f.role : kindOfFile(f.path);
+    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, framework) : colorOf(ext);
     return {
       path: f.path,
-      kind: kindOfFile(f.path),
+      kind,
       extension: ext,
-      colorHex: colorOf(ext),
+      colorHex,
       lines: f.lines,
       fanIn: f.fanIn,
       fanOut: f.fanOut,
@@ -82,17 +89,18 @@ export function buildRepoSummary(
     .filter((f) => f.fanIn === 0)
     .sort((a, b) => b.fanOut - a.fanOut || (a.path < b.path ? -1 : 1));
 
-  const adapter = options?.adapter ?? "none";
-  const framework =
-    adapter === "none" || !adapter ? "None detected" : adapter;
+  const routeCount = options?.routeCount ?? countRoutes(files);
+  const unidentifiedCount = files.filter(
+    (f) => !f.role || f.role === "Generic" || f.role === "Unidentified"
+  ).length;
 
   return {
     name: options?.repoName ?? "repository",
     framework,
     fileCount: files.length,
     importCount: edges.length,
-    routeCount: countRoutes(files),
-    unidentifiedCount: countUnidentified(files),
+    routeCount,
+    unidentifiedCount,
     mostDependedOn,
     startingPoints,
   };
@@ -107,7 +115,8 @@ export function buildFileDetail(
   if (!node) return null;
 
   const ext = extensionOf(filePath);
-  const kind = kindOfFile(filePath);
+  const kind = node.role && node.role !== "Generic" ? node.role : kindOfFile(filePath);
+  const colorHex = node.role && node.role !== "Generic" ? colorOfRole(node.role, "") : colorOf(ext);
 
   // Files this file imports (outgoing edges)
   const depPaths = new Set<string>();
@@ -124,11 +133,13 @@ export function buildFileDetail(
   const toItem = (p: string): FileItem => {
     const fn = filesByPath.get(p);
     const itemExt = extensionOf(p);
+    const itemKind = fn?.role && fn.role !== "Generic" ? fn.role : kindOfFile(p);
+    const itemColor = fn?.role && fn.role !== "Generic" ? colorOfRole(fn.role, "") : colorOf(itemExt);
     return {
       path: p,
-      kind: kindOfFile(p),
+      kind: itemKind,
       extension: itemExt,
-      colorHex: colorOf(itemExt),
+      colorHex: itemColor,
       lines: fn?.lines ?? 0,
       fanIn: fn?.fanIn ?? 0,
       fanOut: fn?.fanOut ?? 0,
@@ -142,7 +153,7 @@ export function buildFileDetail(
     path: filePath,
     kind,
     extension: ext,
-    colorHex: colorOf(ext),
+    colorHex,
     lines: node.lines,
     dependsOnCount: dependencies.length,
     dependedOnCount: dependents.length,
@@ -158,11 +169,13 @@ export function buildFolderDetail(
 ): FolderDetail {
   const files: FileItem[] = filesInFolder.map((f) => {
     const ext = extensionOf(f.path);
+    const kind = f.role && f.role !== "Generic" ? f.role : kindOfFile(f.path);
+    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, "") : colorOf(ext);
     return {
       path: f.path,
-      kind: kindOfFile(f.path),
+      kind,
       extension: ext,
-      colorHex: colorOf(ext),
+      colorHex,
       lines: f.lines,
       fanIn: f.fanIn,
       fanOut: f.fanOut,

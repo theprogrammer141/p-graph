@@ -50,6 +50,8 @@ export interface FileNode {
   fanIn: number;
   /** Distinct files this one imports. */
   fanOut: number;
+  /** Role assigned to this file by framework adapter or convention. */
+  role?: string;
 }
 
 /** One connection between two nodes, deduplicated by (from, to). */
@@ -71,6 +73,17 @@ export interface SkippedFile {
 export interface ExcludedDirectory {
   path: string;
   rule: string;
+}
+
+export interface ExtractedRoute {
+  filePath: string;
+  method: string;
+  path: string;
+}
+
+export interface AssignedRole {
+  filePath: string;
+  role: string;
 }
 
 export type ImportOutcome =
@@ -131,7 +144,10 @@ export interface ParseResult {
   skipped: SkippedFile[];
   excludedDirectories: ExcludedDirectory[];
   imports: ImportRecord[];
+  routes: ExtractedRoute[];
+  roles: AssignedRole[];
   coverage: Coverage;
   /** Things that affect accuracy but aren't tied to one import, e.g. a broken tsconfig. */
   warnings: string[];
 }
+

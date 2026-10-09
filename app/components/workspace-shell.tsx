@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import type { CategorySummary } from "@/lib/file-categories";
+import { countTaxonomyCategories } from "@/lib/taxonomy";
 import type { Edge, FileNode, Coverage } from "@/parser/types";
 import { prepare } from "@/lib/graph/layout";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/lib/graph/detail";
 import { buildInsights } from "@/lib/graph/maths";
 import { GraphCanvas } from "./graph-canvas";
-import { DetailPane } from "./detail-pane";
+import { DetailPane, type RouteItem } from "./detail-pane";
 import { CoverageBanner } from "./coverage-banner";
 
 export type SelectionTarget =
@@ -20,10 +21,11 @@ export type SelectionTarget =
   | null;
 
 interface WorkspaceShellProps {
-  categories: CategorySummary[];
+  categories?: CategorySummary[];
   totalFiles: number;
   files: readonly FileNode[];
   edges: readonly Edge[];
+  routes?: readonly RouteItem[];
   repoName?: string;
   adapter?: string;
   edgeCount?: number;
@@ -31,10 +33,10 @@ interface WorkspaceShellProps {
 }
 
 export function WorkspaceShell({
-  categories,
   totalFiles,
   files,
   edges,
+  routes = [],
   repoName = "preact",
   adapter = "none",
   edgeCount,
@@ -50,9 +52,14 @@ export function WorkspaceShell({
   const prepared = useMemo(() => prepare(files, edges), [files, edges]);
   const filesByPath = useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
 
+  const taxonomyCategories = useMemo(
+    () => countTaxonomyCategories(files, adapter),
+    [files, adapter],
+  );
+
   const repoSummary = useMemo(
-    () => buildRepoSummary(files, edges, { repoName, adapter }),
-    [files, edges, repoName, adapter],
+    () => buildRepoSummary(files, edges, { repoName, adapter, routeCount: routes.length }),
+    [files, edges, repoName, adapter, routes.length],
   );
 
   const insights = useMemo(() => buildInsights(files, edges), [files, edges]);
@@ -139,13 +146,13 @@ export function WorkspaceShell({
         </div>
 
         <div className="p-2 space-y-0.5 overflow-y-auto flex-1">
-          {categories.map((cat) => {
-            const isCatActive = selectedCategory === cat.extension;
+          {taxonomyCategories.map((cat) => {
+            const isCatActive = selectedCategory === cat.label;
             return (
               <button
                 type="button"
-                key={cat.extension}
-                onClick={() => handleToggleCategory(cat.extension)}
+                key={cat.id}
+                onClick={() => handleToggleCategory(cat.label)}
                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded-xs text-xs font-mono cursor-pointer transition-colors ${
                   isCatActive
                     ? "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 font-medium ring-1 ring-(--pg-accent)"
@@ -159,7 +166,7 @@ export function WorkspaceShell({
                     className="w-2 h-2 rounded-xs shrink-0"
                     style={{ backgroundColor: cat.colorHex }}
                   />
-                  <span className="truncate">{cat.extension}</span>
+                  <span className="truncate">{cat.label}</span>
                 </div>
                 <span className="text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums ml-2 shrink-0">
                   {cat.count}
@@ -202,6 +209,7 @@ export function WorkspaceShell({
             selection={selection}
             hoveredTarget={hoveredTarget}
             selectedCategory={selectedCategory}
+            adapter={adapter}
             onOpen={handleOpen}
             onClose={handleClose}
             onSelectFile={handleSelectFile}
@@ -220,6 +228,7 @@ export function WorkspaceShell({
         folderDetail={folderDetail}
         insights={insights}
         edges={edges}
+        routes={routes}
         activeTab={activeTab}
         hoveredTarget={hoveredTarget}
         groupOfFile={(p) => prepared.fold.groupOf.get(p)}
