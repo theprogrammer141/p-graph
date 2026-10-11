@@ -3,8 +3,13 @@
 
 export const SCHEMA_VERSION = 1;
 
-/** The three syntactic forms that can produce an edge. */
-export const IMPORT_KINDS = ["import", "re-export", "dynamic"] as const;
+/** The syntactic forms that can produce an edge. */
+export const IMPORT_KINDS = [
+  "import",
+  "re-export",
+  "dynamic",
+  "require",
+] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 export const SKIP_REASONS = [

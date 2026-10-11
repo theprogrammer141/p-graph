@@ -89,14 +89,17 @@ export function buildRepoSummary(
     .filter((f) => f.fanIn === 0)
     .sort((a, b) => b.fanOut - a.fanOut || (a.path < b.path ? -1 : 1));
 
-  const routeCount = options?.routeCount ?? countRoutes(files);
+  const routeCount =
+    options?.routeCount !== undefined
+      ? options.routeCount
+      : countRoutes(files, adapter);
   const unidentifiedCount = files.filter(
     (f) => !f.role || f.role === "Generic" || f.role === "Unidentified"
   ).length;
 
   return {
     name: options?.repoName ?? "repository",
-    framework,
+    framework: adapter === "express" ? "Express" : framework,
     fileCount: files.length,
     importCount: edges.length,
     routeCount,

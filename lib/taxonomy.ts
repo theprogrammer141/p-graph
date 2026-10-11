@@ -31,6 +31,15 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "component", label: "Components", colorHex: "#0891b2" },
     { id: "hook", label: "Hooks", colorHex: "#7c3aed" },
   ],
+  "Express": [
+    { id: "route", label: "Routes", colorHex: "#7c3aed" },
+    { id: "controller", label: "Controllers", colorHex: "#e11d48" },
+    { id: "middleware", label: "Middleware", colorHex: "#0891b2" },
+    { id: "model", label: "Models", colorHex: "#ea580c" },
+    { id: "service", label: "Services", colorHex: "#c026d3" },
+    { id: "view", label: "Views", colorHex: "#0d9488" },
+    { id: "handler", label: "Handlers", colorHex: "#6366f1" },
+  ],
   "none": [
     { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],

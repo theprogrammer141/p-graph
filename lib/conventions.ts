@@ -5,6 +5,12 @@ import type { FileNode } from "@/parser/types";
 
 export type ConventionRole =
   | "route"
+  | "controller"
+  | "middleware"
+  | "model"
+  | "service"
+  | "view"
+  | "handler"
   | "component"
   | "test"
   | "config"
@@ -20,6 +26,12 @@ export interface IdentifiedRole {
 
 const ROLE_LABELS: Record<ConventionRole, string> = {
   route: "Route",
+  controller: "Controller",
+  middleware: "Middleware",
+  model: "Model",
+  service: "Service",
+  view: "View",
+  handler: "Handler",
   component: "Component",
   test: "Test",
   config: "Config",
@@ -40,17 +52,7 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
   const extDot = fileName.lastIndexOf(".");
   const ext = extDot >= 0 ? fileName.slice(extDot) : "";
 
-  // 1. Framework routes: Next.js App / Pages router, generic routes folder or .route.ts
-  if (
-    /(^|\/)app\/(.+)?(page|route|layout|loading|error)\.[jt]sx?$/.test(norm) ||
-    (/(^|\/)pages\//.test(norm) && !fileName.startsWith("_")) ||
-    /(^|\/)routes\//.test(norm) ||
-    /\.route\.[jt]sx?$/.test(fileName)
-  ) {
-    return { role: "route", label: ROLE_LABELS.route };
-  }
-
-  // 2. Tests
+  // 1. Tests (must precede framework folders so test/controllers/x is a test)
   if (
     /\.(test|spec)\.[jt]sx?$/.test(fileName) ||
     /(^|\/)(__tests__|test|tests|test-fixtures)\//.test(norm)
@@ -58,7 +60,7 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     return { role: "test", label: ROLE_LABELS.test };
   }
 
-  // 3. Configurations
+  // 2. Configurations
   if (
     /\.config\.[jt]s(on)?$/.test(fileName) ||
     /^\.[a-z]+rc(\.[a-z]+)?$/.test(fileName) ||
@@ -68,7 +70,63 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     return { role: "config", label: ROLE_LABELS.config };
   }
 
-  // 4. Type definitions
+  // 3. Framework routes & routers (accepts singular and plural folder names)
+  if (
+    /(^|\/)app\/(.+)?(page|route|layout|loading|error)\.[jt]sx?$/.test(norm) ||
+    (/(^|\/)pages\//.test(norm) && !fileName.startsWith("_")) ||
+    /(^|\/)(routes?|routers?)\//.test(norm) ||
+    /\.(route|router)\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "route", label: ROLE_LABELS.route };
+  }
+
+  // 4. Controllers (singular & plural)
+  if (
+    /(^|\/)controllers?\//.test(norm) ||
+    /\.controller\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "controller", label: ROLE_LABELS.controller };
+  }
+
+  // 5. Middleware (singular & plural, or top-level middleware file)
+  if (
+    /(^|\/)middlewares?\//.test(norm) ||
+    /\.middleware\.[jt]sx?$/.test(fileName) ||
+    /^(middleware|proxy)\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "middleware", label: ROLE_LABELS.middleware };
+  }
+
+  // 6. Models (singular & plural)
+  if (
+    /(^|\/)models?\//.test(norm) ||
+    /\.model\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "model", label: ROLE_LABELS.model };
+  }
+
+  // 7. Services (singular & plural)
+  if (
+    /(^|\/)services?\//.test(norm) ||
+    /\.service\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "service", label: ROLE_LABELS.service };
+  }
+
+  // 8. Views (singular & plural)
+  if (/(^|\/)views?\//.test(norm)) {
+    return { role: "view", label: ROLE_LABELS.view };
+  }
+
+  // 9. Handlers (singular & plural)
+  if (
+    /(^|\/)handlers?\//.test(norm) ||
+    /\.handler\.[jt]sx?$/.test(fileName)
+  ) {
+    return { role: "handler", label: ROLE_LABELS.handler };
+  }
+
+  // 10. Type definitions
   if (
     fileName.endsWith(".d.ts") ||
     fileName === "types.ts" ||
@@ -78,7 +136,7 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     return { role: "types", label: ROLE_LABELS.types };
   }
 
-  // 5. Hooks
+  // 11. Hooks
   if (
     /(^|\/)use[A-Z].*\.[jt]sx?$/.test(norm) ||
     /(^|\/)hooks\//.test(norm)
@@ -86,7 +144,7 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     return { role: "hook", label: ROLE_LABELS.hook };
   }
 
-  // 6. Components
+  // 12. Components
   if (
     ext === ".tsx" ||
     ext === ".jsx" ||
@@ -95,12 +153,12 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     return { role: "component", label: ROLE_LABELS.component };
   }
 
-  // 7. Entry points
-  if (/^(index|main)\.[jt]sx?$/.test(fileName)) {
+  // 13. Entry points
+  if (/^(index|main|app|server)\.[jt]sx?$/.test(fileName)) {
     return { role: "entry", label: ROLE_LABELS.entry };
   }
 
-  // 8. Scripts / CLI
+  // 14. Scripts / CLI
   if (
     /(^|\/)(scripts|bin)\//.test(norm) ||
     fileName === "cli.ts" ||
@@ -118,7 +176,8 @@ export function kindOfFile(filePath: string): string {
   return "Unidentified";
 }
 
-export function countRoutes(files: readonly FileNode[]): number {
+export function countRoutes(files: readonly FileNode[], adapter?: string): number {
+  if (adapter === "express") return 0;
   return files.filter((f) => identifyConvention(f.path)?.role === "route").length;
 }
 

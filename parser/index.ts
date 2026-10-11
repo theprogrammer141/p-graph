@@ -1,9 +1,12 @@
 import { Project } from "ts-morph";
 
-import { chooseAdapter, type FrameworkAdapter } from "./adapter.ts";
-import { ALL_ADAPTERS } from "./adapters/index.ts";
-import { extractImports } from "./imports.ts";
+import { chooseAdapter, fallbackAdapter, type FrameworkAdapter } from "./adapter.ts";
+import { ALL_ADAPTERS, expressAdapter, identifyExpressRole } from "./adapters/index.ts";
+import { extractImports, extractCommonJSExports } from "./imports.ts";
 import { Resolver } from "./resolve.ts";
+
+export { extractCommonJSExports };
+export { expressAdapter, fallbackAdapter, identifyExpressRole };
 import {
   SCHEMA_VERSION,
   type AssignedRole,
@@ -197,6 +200,7 @@ function buildCoverage(
         import: { found: 0, resolved: 0, external: 0, excluded: 0, unresolved: 0 },
         "re-export": { found: 0, resolved: 0, external: 0, excluded: 0, unresolved: 0 },
         dynamic: { found: 0, resolved: 0, external: 0, excluded: 0, unresolved: 0 },
+        require: { found: 0, resolved: 0, external: 0, excluded: 0, unresolved: 0 },
       },
       externalByReason: { package: 0, builtin: 0, "outside-root": 0 },
       excludedByReason: {

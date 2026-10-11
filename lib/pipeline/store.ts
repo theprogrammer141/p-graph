@@ -72,7 +72,7 @@ export async function storeAnalysisData(
         org_id: orgId,
         source_file_id: sourceId,
         target_file_id: targetId,
-        kind,
+        kind: kind === "dynamic" ? "dynamic-import" : kind,
         type_only: edge.typeOnly,
       });
     }

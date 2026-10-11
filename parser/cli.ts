@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse } from "./index.ts";
-
 function main() {
   const args = process.argv.slice(2);
   const outIndex = args.indexOf("--out");
@@ -31,6 +30,8 @@ function main() {
   process.stdout.write(`\rParsed ${filesParsed} files.      \n`);
   const ms = Date.now() - start;
 
+  console.log(`Adapter: ${result.adapter}`);
+
   const { files: covF, imports: covI } = result.coverage;
 
   console.log(`\nFiles: ${covF.found} found, ${covF.parsed} parsed, ${covF.skipped} skipped.`);
@@ -51,6 +52,15 @@ function main() {
   console.log(`  ${reExports.external.toString().padStart(4)} external`);
   console.log(`  ${reExports.excluded.toString().padStart(4)} excluded`);
   console.log(`  ${reExports.unresolved.toString().padStart(4)} unresolved`);
+
+  const reqs = covI.byKind["require"];
+  if (reqs.found > 0) {
+    console.log(`\nRequires: ${reqs.found} found`);
+    console.log(`  ${reqs.resolved.toString().padStart(4)} resolved`);
+    console.log(`  ${reqs.external.toString().padStart(4)} external`);
+    console.log(`  ${reqs.excluded.toString().padStart(4)} excluded`);
+    console.log(`  ${reqs.unresolved.toString().padStart(4)} unresolved`);
+  }
 
   if (covI.unresolved > 0) {
     console.log(`\nUnresolved by reason:`);
