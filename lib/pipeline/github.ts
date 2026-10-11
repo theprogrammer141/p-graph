@@ -3,9 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import * as tar from "tar";
 
 const execFileAsync = promisify(execFile);
+const REQUEST_TIMEOUT_MS = 30_000;
+const ARCHIVE_TIMEOUT_MS = 60_000;
+const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024;
+const MAX_EXTRACTED_BYTES = 500 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 50_000;
 
 export interface ParsedRepo {
   owner: string;
@@ -70,6 +77,7 @@ export async function fetchRepoCommitSha(owner: string, name: string): Promise<s
 
   try {
     const res = await fetch(apiUrl, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         "User-Agent": "p-graph",
         Accept: "application/vnd.github.v3+json",
@@ -96,7 +104,10 @@ export async function fetchRepoCommitSha(owner: string, name: string): Promise<s
   // Fallback: git ls-remote requires no GitHub token and has no API rate limit
   try {
     const repoUrl = `https://github.com/${owner}/${name}`;
-    const { stdout } = await execFileAsync("git", ["ls-remote", repoUrl, "HEAD"]);
+    const { stdout } = await execFileAsync("git", ["ls-remote", repoUrl, "HEAD"], {
+      timeout: REQUEST_TIMEOUT_MS,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
     const sha = stdout.trim().split(/\s+/)[0];
     if (sha && sha.length >= 40) {
       return sha;
@@ -144,18 +155,53 @@ export async function downloadAndExtractRepo(
     for (const url of downloadUrls) {
       try {
         const res = await fetch(url, {
+          signal: AbortSignal.timeout(ARCHIVE_TIMEOUT_MS),
           headers: {
             "User-Agent": "p-graph",
           },
         });
 
         if (res.ok) {
-          const arrayBuffer = await res.arrayBuffer();
-          await fs.promises.writeFile(archivePath, Buffer.from(arrayBuffer));
+          if (Number(res.headers.get("content-length")) > MAX_ARCHIVE_BYTES) {
+            await res.body?.cancel();
+            throw new Error("Repository archive exceeds the 100 MiB download limit.");
+          }
+          if (!res.body) throw new Error("Repository archive response has no body.");
+
+          let downloadedBytes = 0;
+          const byteLimit = new Transform({
+            transform(chunk: Buffer, _encoding, callback) {
+              downloadedBytes += chunk.length;
+              if (downloadedBytes > MAX_ARCHIVE_BYTES) {
+                callback(new Error("Repository archive exceeds the 100 MiB download limit."));
+              } else {
+                callback(null, chunk);
+              }
+            },
+          });
+          const reader = res.body.getReader();
+          const chunks = async function* () {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) return;
+                yield value;
+              }
+            } finally {
+              await reader.cancel();
+              reader.releaseLock();
+            }
+          };
+          await pipeline(
+            Readable.from(chunks()),
+            byteLimit,
+            fs.createWriteStream(archivePath),
+          );
           downloaded = true;
           break;
         } else {
           lastError = `HTTP ${res.status} from ${url}`;
+          await res.body?.cancel();
         }
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : String(err);
@@ -168,11 +214,23 @@ export async function downloadAndExtractRepo(
 
     await fs.promises.mkdir(extractDir, { recursive: true });
 
-    await tar.x({
-      file: archivePath,
-      cwd: extractDir,
-      strip: 1,
+    let extractedBytes = 0;
+    let entryCount = 0;
+    // Validate before writing files: aborting an unpack can leave pending writes
+    // racing with cleanup of the temporary directory.
+    const archiveCheck = tar.t({
+      filter(_entryPath, entry) {
+        extractedBytes += entry.size;
+        entryCount += 1;
+        if (extractedBytes > MAX_EXTRACTED_BYTES || entryCount > MAX_ARCHIVE_ENTRIES) {
+          archiveCheck.abort(new Error("Repository archive exceeds extraction limits (500 MiB or 50,000 entries)."));
+          return false;
+        }
+        return true;
+      },
     });
+    await pipeline(fs.createReadStream(archivePath), archiveCheck);
+    await tar.x({ file: archivePath, cwd: extractDir, strip: 1 });
 
     return {
       commitSha,

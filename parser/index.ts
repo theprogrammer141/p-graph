@@ -96,7 +96,7 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
           outcome = {
             status: "unresolved",
             reason: "non-literal-dynamic",
-            detail: `dynamic import argument is not a literal string: ${ex.expressionText}`,
+            detail: `${ex.kind === "dynamic" ? "dynamic import" : ex.kind} argument is not a literal string: ${ex.expressionText}`,
           };
         } else {
           outcome = resolver.resolve(c.path, ex.specifier);

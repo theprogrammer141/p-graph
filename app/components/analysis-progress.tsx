@@ -91,7 +91,9 @@ export function AnalysisProgress({
               router.refresh();
             }
           })
-          .subscribe();
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED" && active) router.refresh();
+          });
 
         return () => {
           supabase.removeChannel(channel);

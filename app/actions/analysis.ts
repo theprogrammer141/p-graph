@@ -7,6 +7,38 @@ import { createClerkSupabaseClient, createAdminSupabaseClient } from "@/lib/supa
 import { parseRepoUrl } from "@/lib/pipeline/github";
 import { runAnalysis } from "@/lib/pipeline/run";
 
+// Match the dashboard’s stale-run threshold.
+const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
+
+async function failStaleAnalysis(
+  supabase: Awaited<ReturnType<typeof createClerkSupabaseClient>>,
+  analysis: { id: string; status: string; created_at: string; stage: string | null },
+): Promise<boolean> {
+  const cutoff = new Date(Date.now() - ANALYSIS_TIMEOUT_MS).toISOString();
+  if (analysis.status !== "parsing" || Date.parse(analysis.created_at) >= Date.parse(cutoff)) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("analyses")
+    .update({
+      status: "failed",
+      stage: "failed",
+      failed_stage: analysis.stage,
+      stage_message: "Analysis timed out. Please retry.",
+      error: "Analysis timed out. Please retry.",
+      finished_at: new Date().toISOString(),
+    })
+    .eq("id", analysis.id)
+    .eq("status", "parsing")
+    .lt("created_at", cutoff)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to expire analysis: ${error.message}`);
+  return data !== null;
+}
+
 export interface ActionState {
   error?: string;
 }
@@ -55,13 +87,13 @@ export async function submitRepoAction(
   if (project) {
     const { data: existing } = await supabase
       .from("analyses")
-      .select("id, status")
+      .select("id, status, created_at, stage")
       .eq("project_id", project.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (existing && existing.status !== "failed") {
+    if (existing && existing.status !== "failed" && !(await failStaleAnalysis(supabase, existing))) {
       redirect(`/analysis/${existing.id}`);
     }
   }
@@ -110,6 +142,7 @@ export async function submitRepoAction(
       await runAnalysis({
         supabase: admin,
         orgId,
+        analysisId,
         repoUrl: canonicalUrl,
         forceRerun: true,
       });
@@ -135,7 +168,7 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
 
   const { data: analysis, error } = await supabase
     .from("analyses")
-    .select("id, org_id, project:projects(repo_url)")
+    .select("id, org_id, status, created_at, stage, project:projects(repo_url)")
     .eq("id", analysisId)
     .single();
 
@@ -148,8 +181,10 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
     throw new Error("Repository URL not found for analysis.");
   }
 
-  // Reset analysis row
-  await supabase
+  await failStaleAnalysis(supabase, analysis);
+
+  // Claim only a failed row so concurrent retries cannot both start a run.
+  const { data: reset, error: resetError } = await supabase
     .from("analyses")
     .update({
       status: "parsing",
@@ -158,8 +193,15 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
       error: null,
       failed_stage: null,
       finished_at: null,
+      created_at: new Date().toISOString(),
     })
-    .eq("id", analysisId);
+    .eq("id", analysisId)
+    .eq("status", "failed")
+    .select("id")
+    .maybeSingle();
+
+  if (resetError) throw new Error(`Failed to reset analysis: ${resetError.message}`);
+  if (!reset) redirect(`/analysis/${analysisId}`);
 
   after(async () => {
     const admin = createAdminSupabaseClient();
@@ -167,6 +209,7 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
       await runAnalysis({
         supabase: admin,
         orgId,
+        analysisId,
         repoUrl: project.repo_url,
         forceRerun: true,
       });

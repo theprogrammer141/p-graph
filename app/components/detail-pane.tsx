@@ -337,28 +337,29 @@ function RepoSummaryView({
             {routes.map((route, idx) => {
               const isHovered = isFileHovered(route.filePath);
               return (
-                <div
+                <button
+                  type="button"
                   key={`${route.method}-${route.path}-${route.filePath}-${idx}`}
                   onClick={() => onSelectFile(route.filePath)}
                   onMouseEnter={() => onHover(route.filePath)}
                   onMouseLeave={() => onHover(null)}
                   title={`${route.method} ${route.path} · ${route.filePath}`}
-                  className={`px-2 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                  className={`w-full text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--pg-accent) px-2 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
                     isHovered
                       ? "bg-zinc-200/80 dark:bg-zinc-800/80 text-zinc-950 dark:text-zinc-50 ring-1 ring-(--pg-accent)/60"
                       : "hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 min-w-0 flex-1">
                     <MethodBadge method={route.method} />
                     <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
                       {route.path}
                     </span>
-                  </div>
+                  </span>
                   <span className="shrink-0 text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-24">
                     {route.filePath.split("/").pop()}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

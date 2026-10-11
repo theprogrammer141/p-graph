@@ -107,12 +107,16 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
   const { getToken } = useAuth();
   const [analyses, setAnalyses] = useState<AnalysisItem[]>(initialAnalyses);
 
+  const activeAnalysisIdsKey = analyses
+    .filter((a) => a.status === "parsing" || a.status === "queued")
+    .map((a) => a.id)
+    .sort()
+    .join(",");
+
   // Subscribe to realtime updates for active (parsing/queued) analyses
   useEffect(() => {
-    const activeAnalyses = analyses.filter(
-      (a) => a.status === "parsing" || a.status === "queued",
-    );
-    if (activeAnalyses.length === 0) return;
+    if (!activeAnalysisIdsKey) return;
+    const activeAnalysisIds = activeAnalysisIdsKey.split(",");
 
     let mounted = true;
     const supabase = createBrowserSupabaseClient(getToken);
@@ -124,8 +128,10 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
         await supabase.realtime.setAuth(token);
       }
 
-      const channels = activeAnalyses.map((a) => {
-        const channel = supabase.channel(`analysis:${a.id}`, {
+      if (!mounted) return;
+
+      const channels = activeAnalysisIds.map((id) => {
+        const channel = supabase.channel(`analysis:${id}`, {
           config: { private: true },
         });
 
@@ -169,7 +175,7 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
       mounted = false;
       cleanupPromise.then((cleanup) => cleanup?.());
     };
-  }, [analyses, getToken]);
+  }, [activeAnalysisIdsKey, getToken]);
 
   if (analyses.length === 0) {
     return (

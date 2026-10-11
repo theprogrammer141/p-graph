@@ -15,6 +15,7 @@ export interface RunAnalysisOptions {
   orgId: string;
   repoUrl: string;
   forceRerun?: boolean;
+  analysisId?: string;
 }
 
 export interface RunAnalysisResult {
@@ -33,6 +34,7 @@ export async function runAnalysis({
   orgId,
   repoUrl,
   forceRerun = false,
+  analysisId: requestedAnalysisId,
 }: RunAnalysisOptions): Promise<RunAnalysisResult> {
   const { owner, name, canonicalUrl } = parseRepoUrl(repoUrl);
 
@@ -55,14 +57,20 @@ export async function runAnalysis({
     throw new Error(`Failed to ensure project: ${projectError?.message ?? "unknown error"}`);
   }
 
-  // 2. Check for existing analysis (one analysis per repository)
-  const { data: existingAnalysis } = await supabase
+  // An action may already have claimed a specific row for this run.
+  let analysisQuery = supabase
     .from("analyses")
     .select("id, status, stage, commit_sha")
-    .eq("project_id", project.id)
+    .eq("project_id", project.id);
+  if (requestedAnalysisId) analysisQuery = analysisQuery.eq("id", requestedAnalysisId);
+  const { data: existingAnalysis, error: lookupError } = await analysisQuery
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (lookupError || (requestedAnalysisId && !existingAnalysis)) {
+    throw new Error(`Failed to find analysis: ${lookupError?.message ?? "requested analysis not found"}`);
+  }
 
   if (existingAnalysis && !forceRerun && existingAnalysis.status !== "failed") {
     // Already analysed (or currently running)
@@ -86,6 +94,7 @@ export async function runAnalysis({
         error: null,
         failed_stage: null,
         finished_at: null,
+        created_at: new Date().toISOString(),
       })
       .eq("id", analysisId);
 
@@ -149,7 +158,7 @@ export async function runAnalysis({
       await storeAnalysisData(supabase, orgId, analysisId, parseResult);
 
       // Complete
-      await supabase
+      const { error: completionError } = await supabase
         .from("analyses")
         .update({
           status: "complete",
@@ -163,6 +172,10 @@ export async function runAnalysis({
           failed_stage: null,
         })
         .eq("id", analysisId);
+
+      if (completionError) {
+        throw new Error(`Failed to complete analysis: ${completionError.message}`);
+      }
 
       return {
         analysisId,

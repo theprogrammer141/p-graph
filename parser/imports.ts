@@ -5,16 +5,16 @@ import type { ImportKind } from "./types.ts";
 export interface RawImport {
   kind: ImportKind;
   line: number;
-  /** null when a dynamic import's argument isn't a literal string. */
+  /** null when a dynamic import or require argument isn't a literal string. */
   specifier: string | null;
   typeOnly: boolean;
-  /** Source text of a non-literal dynamic argument, for the report. */
+  /** Source text of a non-literal argument, for the report. */
   expressionText?: string;
 }
 
 /**
  * Reads the syntactic forms that can become edges: import, re-export, dynamic
- * import, and require() with a literal string argument. Order follows the source so
+ * import, and require(). Order follows the source so
  * output is stable.
  */
 export function extractImports(sourceFile: SourceFile): RawImport[] {
@@ -67,17 +67,20 @@ export function extractImports(sourceFile: SourceFile): RawImport[] {
 
     if (Node.isIdentifier(expr) && expr.getText() === "require") {
       const arg = call.getArguments()[0];
-      if (
+      const literal =
         arg &&
         (Node.isStringLiteral(arg) || Node.isNoSubstitutionTemplateLiteral(arg))
-      ) {
-        found.push({
-          kind: "require",
-          line: call.getStartLineNumber(),
-          specifier: arg.getLiteralValue(),
-          typeOnly: false,
-        });
-      }
+          ? arg.getLiteralValue()
+          : null;
+      found.push({
+        kind: "require",
+        line: call.getStartLineNumber(),
+        specifier: literal,
+        typeOnly: false,
+        ...(literal === null
+          ? { expressionText: arg ? arg.getText().slice(0, 120) : "(no argument)" }
+          : {}),
+      });
     }
   }
 

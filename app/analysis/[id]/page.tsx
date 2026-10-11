@@ -48,7 +48,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   }
 
   // If in progress or failed, render the progress tracker
-  if (analysis.status === "parsing" || analysis.status === "queued" || analysis.status === "failed") {
+  if (analysis.status !== "complete") {
     return (
       <main className="flex-1 flex flex-col h-[calc(100vh-2.75rem)] overflow-hidden">
         <AnalysisProgress

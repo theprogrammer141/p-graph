@@ -68,9 +68,9 @@ export function WorkspaceShell({
   const fileDetail = useMemo(
     () =>
       selection?.kind === "file"
-        ? buildFileDetail(selection.path, filesByPath, edges)
+        ? buildFileDetail(selection.path, filesByPath, edges, adapter)
         : null,
-    [selection, filesByPath, edges],
+    [selection, filesByPath, edges, adapter],
   );
 
   const folderDetail = useMemo(() => {
@@ -80,8 +80,8 @@ export function WorkspaceShell({
       ? group.files.map((p) => filesByPath.get(p)!).filter(Boolean)
       : [];
     const stats = prepared.stats.get(selection.dir);
-    return buildFolderDetail(selection.dir, folderFiles, stats);
-  }, [selection, prepared, filesByPath]);
+    return buildFolderDetail(selection.dir, folderFiles, adapter, stats);
+  }, [selection, prepared, filesByPath, adapter]);
 
   const handleOpen = (id: string) => {
     setOpen((prev) => new Set(prev).add(id));

@@ -71,7 +71,7 @@ export function buildRepoSummary(
   const fileItems: FileItem[] = files.map((f) => {
     const ext = extensionOf(f.path);
     const kind = f.role && f.role !== "Generic" ? f.role : kindOfFile(f.path);
-    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, framework) : colorOf(ext);
+    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, adapter) : colorOf(ext);
     return {
       path: f.path,
       kind,
@@ -117,14 +117,15 @@ export function buildRepoSummary(
 export function buildFileDetail(
   filePath: string,
   filesByPath: ReadonlyMap<string, FileNode>,
-  edges: readonly Edge[]
+  edges: readonly Edge[],
+  adapter: string
 ): FileDetail | null {
   const node = filesByPath.get(filePath);
   if (!node) return null;
 
   const ext = extensionOf(filePath);
   const kind = node.role && node.role !== "Generic" ? node.role : kindOfFile(filePath);
-  const colorHex = node.role && node.role !== "Generic" ? colorOfRole(node.role, "") : colorOf(ext);
+  const colorHex = node.role && node.role !== "Generic" ? colorOfRole(node.role, adapter) : colorOf(ext);
 
   // Files this file imports (outgoing edges)
   const depPaths = new Set<string>();
@@ -143,7 +144,7 @@ export function buildFileDetail(
     const fn = filesByPath.get(p);
     const itemExt = extensionOf(p);
     const itemKind = fn?.role && fn.role !== "Generic" ? fn.role : kindOfFile(p);
-    const itemColor = fn?.role && fn.role !== "Generic" ? colorOfRole(fn.role, "") : colorOf(itemExt);
+    const itemColor = fn?.role && fn.role !== "Generic" ? colorOfRole(fn.role, adapter) : colorOf(itemExt);
     return {
       path: p,
       kind: itemKind,
@@ -175,12 +176,13 @@ export function buildFileDetail(
 export function buildFolderDetail(
   dir: string,
   filesInFolder: readonly FileNode[],
+  adapter: string,
   stats?: { fanIn: number; fanOut: number }
 ): FolderDetail {
   const files: FileItem[] = filesInFolder.map((f) => {
     const ext = extensionOf(f.path);
     const kind = f.role && f.role !== "Generic" ? f.role : kindOfFile(f.path);
-    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, "") : colorOf(ext);
+    const colorHex = f.role && f.role !== "Generic" ? colorOfRole(f.role, adapter) : colorOf(ext);
     return {
       path: f.path,
       kind,

@@ -54,7 +54,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     const norm = relPath.replace(/\\/g, "/");
 
     // 1. Page routes
-    if (/(^|\/)app\/(.+)?page\.[jt]sx?$/.test(norm)) {
+    if (/(^|\/)app\/(?:.*\/)?page\.[jt]sx?$/.test(norm)) {
       return "Page routes";
     }
     if (/(^|\/)pages\/(.+)\.[jt]sx?$/.test(norm)) {
@@ -71,7 +71,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     }
 
     // 2. API endpoints
-    if (/(^|\/)app\/(.+)?route\.[jt]sx?$/.test(norm)) {
+    if (/(^|\/)app\/(?:.*\/)?route\.[jt]sx?$/.test(norm)) {
       return "API endpoints";
     }
     if (/(^|\/)pages\/api\//.test(norm)) {
@@ -104,7 +104,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     const routes: ExtractedRoute[] = [];
 
     // App Router: page.[jt]sx?
-    if (/(^|\/)app\/(.+)?page\.[jt]sx?$/.test(norm)) {
+    if (/(^|\/)app\/(?:.*\/)?page\.[jt]sx?$/.test(norm)) {
       const pattern = deriveAppRouterPattern(norm, "page");
       if (pattern !== null) {
         routes.push({ filePath: relPath, method: "GET", path: pattern });
@@ -113,7 +113,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     }
 
     // App Router: route.[jt]sx?
-    if (/(^|\/)app\/(.+)?route\.[jt]sx?$/.test(norm)) {
+    if (/(^|\/)app\/(?:.*\/)?route\.[jt]sx?$/.test(norm)) {
       const pattern = deriveAppRouterPattern(norm, "route");
       if (pattern !== null) {
         const HTTP_METHODS = [
@@ -165,25 +165,18 @@ function deriveAppRouterPattern(
   normPath: string,
   kind: "page" | "route",
 ): string | null {
-  // Strip everything up to and including 'app/'
-  const appIndex = normPath.lastIndexOf("app/");
+  const parts = normPath.split("/");
+  const appIndex = parts.indexOf("app");
   if (appIndex < 0) return null;
-  let rest = normPath.slice(appIndex + 4);
+  const filename = parts.pop();
+  if (!filename || !new RegExp(`^${kind}\\.[jt]sx?$`).test(filename)) return null;
 
-  // Strip trailing '/page.[jt]sx?' or '/route.[jt]sx?'
-  if (kind === "page") {
-    rest = rest.replace(/\/?page\.[jt]sx?$/, "");
-  } else {
-    rest = rest.replace(/\/?route\.[jt]sx?$/, "");
-  }
-
-  if (!rest) return "/";
-
-  // Filter out route groups e.g. '(auth)', '(marketing)'
-  const segments = rest
-    .split("/")
-    .filter(Boolean)
-    .filter((s) => !/^\(.*\)$/.test(s));
+  const routeSegments = parts.slice(appIndex + 1);
+  // Private folders are not routable; slots and route groups do not add URL segments.
+  if (routeSegments.some((segment) => segment.startsWith("_"))) return null;
+  const segments = routeSegments.filter(
+    (segment) => !/^\(.*\)$/.test(segment) && !segment.startsWith("@"),
+  );
 
   if (segments.length === 0) return "/";
   return "/" + segments.join("/");
