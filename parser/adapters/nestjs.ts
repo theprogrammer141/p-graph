@@ -17,6 +17,7 @@ const NEST_HTTP_METHODS: Readonly<Record<string, string>> = {
 export const nestjsAdapter: FrameworkAdapter = {
   name: "NestJS",
 
+  /** Recognizes NestJS from nest-cli.json or a declared core or common dependency. */
   detect(root: string): boolean {
     if (existsSync(path.join(/*turbopackIgnore: true*/ root, "nest-cli.json"))) return true;
 
@@ -38,6 +39,7 @@ export const nestjsAdapter: FrameworkAdapter = {
     return false;
   },
 
+  /** Returns an exclusion reason for dependency, hidden, or build directories, otherwise null. */
   excludeDirectory(_relPath: string, name: string): string | null {
     if (name === "node_modules") return "dependencies (node_modules)";
     if (name.startsWith(".")) return "hidden directory";
@@ -47,6 +49,7 @@ export const nestjsAdapter: FrameworkAdapter = {
     return null;
   },
 
+  /** Classifies NestJS filename suffixes, leaving test and unmatched files Generic. */
   assignRole(relPath: string): string | null {
     const norm = relPath.replace(/\\/g, "/");
     const fileName = norm.split("/").pop() ?? "";
@@ -64,6 +67,7 @@ export const nestjsAdapter: FrameworkAdapter = {
     return "Generic";
   },
 
+  /** Extracts controller routes with literal decorator paths, omitting dynamic paths. */
   extractRoutes(relPath: string, sourceFile: SourceFile): ExtractedRoute[] {
     const routes: ExtractedRoute[] = [];
     const classes = sourceFile.getClasses();
@@ -105,6 +109,10 @@ export const nestjsAdapter: FrameworkAdapter = {
   },
 };
 
+/**
+ * Reads a literal controller prefix, including the object path form.
+ * Returns an empty prefix for no arguments or null for unsupported expressions.
+ */
 function extractControllerPrefix(dec: Decorator): string | null {
   const args = dec.getArguments();
   if (args.length === 0) return "";
@@ -140,6 +148,10 @@ function extractControllerPrefix(dec: Decorator): string | null {
   return null;
 }
 
+/**
+ * Reads a literal HTTP decorator path, returning an empty path for no arguments
+ * or null when the path cannot be recovered from a literal.
+ */
 function extractMethodSubpath(dec: Decorator): string | null {
   const args = dec.getArguments();
   if (args.length === 0) return "";
@@ -158,6 +170,7 @@ function extractMethodSubpath(dec: Decorator): string | null {
   return null;
 }
 
+/** Joins controller and method paths with one boundary slash and a leading slash. */
 function assembleNestPath(prefix: string, subpath: string): string {
   const cleanPrefix = prefix.replace(/^\/+|\/+$/g, "");
   const cleanSub = subpath.replace(/^\/+|\/+$/g, "");

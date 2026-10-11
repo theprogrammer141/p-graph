@@ -102,6 +102,10 @@ export function foldedMeta(fileCount: number): string {
   return `${fileCount} files`;
 }
 
+/**
+ * Builds positioned folder nodes and aggregated edges for the set of expanded folders.
+ * Expanded folders expose file rows with roles and handles for their connections.
+ */
 export function buildCanvas(
   prepared: Prepared,
   edges: readonly Edge[],

@@ -42,7 +42,9 @@ export const fallbackAdapter: FrameworkAdapter = {
     if (BUILD_OUTPUT_DIRS.has(name)) return `build output (${name})`;
     return null;
   },
+  /** Leaves every file generic when no framework adapter matches. */
   assignRole: () => "Generic",
+  /** Returns no routes because the fallback adapter has no routing conventions. */
   extractRoutes: () => [],
 };
 

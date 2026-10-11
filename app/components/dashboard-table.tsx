@@ -35,10 +35,12 @@ interface BroadcastPayload {
   failed_stage: string | null;
 }
 
+/** Formats an ISO timestamp supplied in UTC to minute precision for the dashboard. */
 function formatTimestamp(iso: string): string {
   return iso.slice(0, 16).replace("T", " ") + " UTC";
 }
 
+/** Formats elapsed time in seconds or minutes, or an em dash for unfinished runs. */
 function formatDuration(startIso: string, endIso: string | null): string {
   if (!endIso) return "—";
   const seconds = Math.round((Date.parse(endIso) - Date.parse(startIso)) / 1000);
@@ -46,11 +48,13 @@ function formatDuration(startIso: string, endIso: string | null): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
+/** Returns whether the analysis was created more than five minutes ago. */
 function isStale(createdIso: string): boolean {
   const diffMs = Date.now() - Date.parse(createdIso);
   return diffMs > 5 * 60 * 1000; // 5 minutes old
 }
 
+/** Renders the analysis status, marking parsing runs older than five minutes as stale. */
 function renderStatus(item: AnalysisItem) {
   const { status, stage, created_at } = item;
 
@@ -98,6 +102,7 @@ function renderStatus(item: AnalysisItem) {
   }
 }
 
+/** Displays recent analyses and updates active rows through Realtime broadcasts. */
 export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
   const { getToken } = useAuth();
   const [analyses, setAnalyses] = useState<AnalysisItem[]>(initialAnalyses);
@@ -112,6 +117,7 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
     let mounted = true;
     const supabase = createBrowserSupabaseClient(getToken);
 
+    /** Authenticates subscriptions for active analyses and returns a callback to remove them. */
     async function subscribeChannels() {
       const token = await getToken();
       if (token) {

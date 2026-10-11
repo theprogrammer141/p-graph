@@ -77,6 +77,7 @@ export function identifyExpressRole(relPath: string): string | null {
 export const expressAdapter: FrameworkAdapter = {
   name: "Express",
 
+  /** Recognizes Express from the package name or a declared dependency. */
   detect(root: string): boolean {
     const pkgPath = path.join(/*turbopackIgnore: true*/ root, "package.json");
     if (existsSync(pkgPath)) {
@@ -96,6 +97,7 @@ export const expressAdapter: FrameworkAdapter = {
     return false;
   },
 
+  /** Returns an exclusion reason for dependency, hidden, or build directories, otherwise null. */
   excludeDirectory(_relPath: string, name: string): string | null {
     if (name === "node_modules") return "dependencies (node_modules)";
     if (name.startsWith(".")) return "hidden directory";
@@ -110,10 +112,12 @@ export const expressAdapter: FrameworkAdapter = {
     return null;
   },
 
+  /** Assigns an Express role from path conventions, falling back to Generic. */
   assignRole(relPath: string): string | null {
     return identifyExpressRole(relPath);
   },
 
+  /** Returns no routes because Express route extraction is not implemented. */
   extractRoutes(): ExtractedRoute[] {
     return [];
   },

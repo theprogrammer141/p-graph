@@ -31,6 +31,7 @@ interface DetailPaneProps {
   onHover: (target: string | null) => void;
 }
 
+/** Renders details and insights for the current repository, folder, or file selection. */
 export function DetailPane({
   selection,
   repoSummary,
@@ -166,6 +167,7 @@ interface StructureTabProps {
   onHover: (target: string | null) => void;
 }
 
+/** Selects the repository, file, or folder detail view for the current selection. */
 function StructureTab({
   selection,
   repoSummary,
@@ -220,6 +222,7 @@ function StructureTab({
   );
 }
 
+/** Renders an uppercase HTTP method with its method-specific color or a neutral fallback. */
 function MethodBadge({ method }: { method: string }) {
   const m = method.toUpperCase();
   let badgeStyle = "text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700";
@@ -243,6 +246,7 @@ function MethodBadge({ method }: { method: string }) {
   );
 }
 
+/** Displays repository counts, extracted routes, starting points, and frequently imported files. */
 function RepoSummaryView({
   summary,
   routes,
@@ -462,6 +466,7 @@ function RepoSummaryView({
   );
 }
 
+/** Displays a selected file’s routes, direct dependencies, and transitive dependency chains. */
 function FileDetailView({
   detail,
   edges,

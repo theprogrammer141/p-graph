@@ -111,6 +111,7 @@ export async function runAnalysis({
     analysisId = created.id;
   }
 
+  /** Writes the current pipeline stage and progress message to the analysis row. */
   const updateStage = async (stage: PipelineStage, message: string) => {
     await supabase
       .from("analyses")

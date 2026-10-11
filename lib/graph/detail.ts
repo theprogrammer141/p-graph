@@ -55,6 +55,10 @@ export interface FolderDetail {
   files: FileItem[];
 }
 
+/**
+ * Builds repository counts and ranked file lists, preferring an explicit route count
+ * over path conventions when one is supplied.
+ */
 export function buildRepoSummary(
   files: readonly FileNode[],
   edges: readonly Edge[],
@@ -109,6 +113,7 @@ export function buildRepoSummary(
   };
 }
 
+/** Builds direct dependency and dependent lists for a file, or returns null if it is absent. */
 export function buildFileDetail(
   filePath: string,
   filesByPath: ReadonlyMap<string, FileNode>,
@@ -133,6 +138,7 @@ export function buildFileDetail(
     if (e.to === filePath) revPaths.add(e.from);
   }
 
+  /** Builds a related file item, using convention labels and zero counts for missing metadata. */
   const toItem = (p: string): FileItem => {
     const fn = filesByPath.get(p);
     const itemExt = extensionOf(p);
@@ -165,6 +171,7 @@ export function buildFileDetail(
   };
 }
 
+/** Summarizes the supplied folder files by extension and role, sorting files by fan-in. */
 export function buildFolderDetail(
   dir: string,
   filesInFolder: readonly FileNode[],

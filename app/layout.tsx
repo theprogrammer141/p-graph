@@ -22,6 +22,7 @@ export const metadata: Metadata = {
   description: "Codebase visualization graph",
 };
 
+/** Wraps pages in authentication and theme providers with the shared navigation header. */
 export default async function RootLayout({
   children,
 }: Readonly<{

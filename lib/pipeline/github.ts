@@ -121,6 +121,7 @@ export async function downloadAndExtractRepo(
   const archivePath = path.join(tmpDir, "archive.tar.gz");
   const extractDir = path.join(tmpDir, "source");
 
+  /** Removes the temporary archive and extracted files, ignoring cleanup errors. */
   const cleanup = async () => {
     try {
       await fs.promises.rm(tmpDir, { recursive: true, force: true });

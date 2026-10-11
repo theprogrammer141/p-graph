@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse } from "./index.ts";
+/** Parses the repository supplied on the command line, prints coverage, and optionally writes JSON. */
 function main() {
   const args = process.argv.slice(2);
   const outIndex = args.indexOf("--out");

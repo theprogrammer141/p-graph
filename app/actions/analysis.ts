@@ -11,6 +11,11 @@ export interface ActionState {
   error?: string;
 }
 
+/**
+ * Validates a repository submission, reuses an existing analysis when possible,
+ * or schedules a background run and redirects to its progress page.
+ * Returns a form error when validation or registration fails.
+ */
 export async function submitRepoAction(
   _prevState: ActionState | null,
   formData: FormData,
@@ -116,6 +121,10 @@ export async function submitRepoAction(
   redirect(`/analysis/${analysisId}`);
 }
 
+/**
+ * Resets an accessible analysis and schedules its repository for another run.
+ * Throws when the organization or repository is unavailable; redirects on success.
+ */
 export async function rerunAnalysisAction(analysisId: string): Promise<void | never> {
   const { orgId } = await auth();
   if (!orgId) {

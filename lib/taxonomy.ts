@@ -49,16 +49,22 @@ const FALLBACK_TAXONOMY: readonly TaxonomyCategory[] = [
   { id: "generic", label: "Generic", colorHex: "#71717a" },
 ];
 
+/** Returns the framework’s role categories, falling back to the generic category. */
 export function getTaxonomy(framework: string): readonly TaxonomyCategory[] {
   return FRAMEWORK_TAXONOMIES[framework] ?? FALLBACK_TAXONOMY;
 }
 
+/** Finds a role label’s framework color, falling back to neutral gray when unmatched. */
 export function colorOfRole(role: string, framework: string): string {
   const categories = getTaxonomy(framework);
   const matched = categories.find((c) => c.label === role);
   return matched?.colorHex ?? "#71717a";
 }
 
+/**
+ * Counts files in each framework role category, including zero-count categories.
+ * Files without a role count toward a generic category when one exists.
+ */
 export function countTaxonomyCategories(
   files: readonly { readonly role?: string }[],
   framework: string,

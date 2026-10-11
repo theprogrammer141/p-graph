@@ -32,6 +32,7 @@ interface WorkspaceShellProps {
   coverage?: Coverage | null;
 }
 
+/** Coordinates graph selection, expanded folders, category filters, coverage, and detail views. */
 export function WorkspaceShell({
   totalFiles,
   files,

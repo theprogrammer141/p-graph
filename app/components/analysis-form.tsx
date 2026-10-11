@@ -3,6 +3,7 @@
 import React, { useActionState } from "react";
 import { submitRepoAction, type ActionState } from "@/app/actions/analysis";
 
+/** Submits a GitHub repository URL and displays pending state or server action errors. */
 export function AnalysisForm() {
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     submitRepoAction,

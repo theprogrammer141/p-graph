@@ -27,6 +27,10 @@ export interface ParseOptions {
   onStartFile?: (relPath: string) => void;
 }
 
+/**
+ * Parses a local repository into files, resolved dependency edges, roles, routes, and coverage.
+ * Uses the first matching adapter and reports skipped files and unresolved imports explicitly.
+ */
 export function parse(root: string, options?: ParseOptions): ParseResult {
   const adapter = chooseAdapter(root, options?.adapters ?? ALL_ADAPTERS);
   const walk = walkRepository(root, adapter);
@@ -176,6 +180,7 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
   };
 }
 
+/** Aggregates file counts and import outcomes by import kind and resolution reason. */
 function buildCoverage(
   nodesCount: number,
   parsed: number,

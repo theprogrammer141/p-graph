@@ -25,8 +25,10 @@ export async function createClerkSupabaseClient() {
   });
 }
 
-// Server-only admin client using SUPABASE_SECRET_KEY (bypasses RLS).
-// Used for offline verification scripts or background pipeline tasks.
+/**
+ * Creates a server-only admin client using SUPABASE_SECRET_KEY, bypassing RLS.
+ * Used for background pipeline tasks; throws when its URL or secret key is missing.
+ */
 export function createAdminSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;

@@ -146,6 +146,7 @@ const FoldedNode = memo(function FoldedNode({ data }: NodeProps<FoldedFlowNode>)
   );
 });
 
+/** Renders an expanded folder with selectable file rows, role colors, and edge handles. */
 const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
   const { close, selectFile, hover } = useActions();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -363,6 +364,7 @@ interface CanvasProps {
   onHover: (target: string | null) => void;
 }
 
+/** Builds the interactive dependency canvas with selection, hover, and category highlighting. */
 function Canvas({
   edges,
   prepared,

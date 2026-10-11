@@ -35,6 +35,7 @@ interface BroadcastPayload {
   failed_stage: string | null;
 }
 
+/** Tracks an analysis through private Realtime broadcasts and offers retries on failure. */
 export function AnalysisProgress({
   analysisId,
   repoOwner,
@@ -60,6 +61,10 @@ export function AnalysisProgress({
     let active = true;
     const supabase = createBrowserSupabaseClient(getToken);
 
+    /**
+     * Authenticates the analysis subscription and returns its channel cleanup callback.
+     * Logs connection failures and refreshes the page when analysis completes.
+     */
     async function subscribe() {
       try {
         const token = await getToken();
@@ -104,6 +109,7 @@ export function AnalysisProgress({
     };
   }, [analysisId, getToken, router]);
 
+  /** Maps a pipeline stage to its progress position, or -1 for an unknown stage. */
   const stageIndex = (s: PipelineStage | null): number => {
     switch (s) {
       case "fetch":
@@ -123,6 +129,7 @@ export function AnalysisProgress({
 
   const currentIdx = stageIndex(stage);
 
+  /** Starts a retry while disabling the button, restoring it if the action fails. */
   const handleRerun = async () => {
     setIsRerunning(true);
     try {

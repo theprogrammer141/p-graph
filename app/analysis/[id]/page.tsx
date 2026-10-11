@@ -13,6 +13,10 @@ interface AnalysisPageProps {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Loads an accessible analysis and renders its progress or reconstructed graph.
+ * Redirects when no organization is selected and returns not found for missing data.
+ */
 export default async function AnalysisPage({ params }: AnalysisPageProps) {
   const { id } = await params;
   const { orgId } = await auth();

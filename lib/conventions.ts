@@ -176,6 +176,7 @@ export function kindOfFile(filePath: string): string {
   return "Unidentified";
 }
 
+/** Counts files matching route naming conventions; returns zero for the "express" adapter. */
 export function countRoutes(files: readonly FileNode[], adapter?: string): number {
   if (adapter === "express") return 0;
   return files.filter((f) => identifyConvention(f.path)?.role === "route").length;

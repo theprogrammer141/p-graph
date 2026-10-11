@@ -7,6 +7,10 @@ interface CoverageBannerProps {
   coverage: Coverage;
 }
 
+/**
+ * Shows a collapsible warning when internal import resolution is below 95%
+ * or any files were skipped; otherwise renders nothing.
+ */
 export function CoverageBanner({ coverage }: CoverageBannerProps) {
   const [collapsed, setCollapsed] = useState(false);
 

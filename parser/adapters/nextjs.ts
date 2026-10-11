@@ -6,6 +6,7 @@ import type { ExtractedRoute, FrameworkAdapter } from "../adapter.ts";
 export const nextjsAdapter: FrameworkAdapter = {
   name: "Next.js",
 
+  /** Recognizes Next.js from a supported configuration filename or a declared dependency. */
   detect(root: string): boolean {
     const configNames = [
       "next.config.js",
@@ -35,6 +36,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     return false;
   },
 
+  /** Returns an exclusion reason for dependencies, hidden directories, or Next.js build output. */
   excludeDirectory(_relPath: string, name: string): string | null {
     if (name === "node_modules") return "dependencies (node_modules)";
     if (name.startsWith(".")) {
@@ -47,6 +49,7 @@ export const nextjsAdapter: FrameworkAdapter = {
     return null;
   },
 
+  /** Classifies page routes, API endpoints, and server actions using paths and source directives. */
   assignRole(relPath: string, fileText?: string): string | null {
     const norm = relPath.replace(/\\/g, "/");
 
@@ -92,6 +95,10 @@ export const nextjsAdapter: FrameworkAdapter = {
     return "Generic";
   },
 
+  /**
+   * Extracts GET page routes and exported App Router HTTP handlers.
+   * Pages Router API handlers are not extracted.
+   */
   extractRoutes(relPath: string, sourceFile: SourceFile): ExtractedRoute[] {
     const norm = relPath.replace(/\\/g, "/");
     const routes: ExtractedRoute[] = [];
@@ -150,6 +157,10 @@ export const nextjsAdapter: FrameworkAdapter = {
   },
 };
 
+/**
+ * Derives a route pattern from an app path by removing its entry filename and route groups.
+ * Preserves dynamic segments and returns null when no app directory is present.
+ */
 function deriveAppRouterPattern(
   normPath: string,
   kind: "page" | "route",
@@ -178,6 +189,10 @@ function deriveAppRouterPattern(
   return "/" + segments.join("/");
 }
 
+/**
+ * Derives a pages route pattern by removing the extension and trailing index segment.
+ * Preserves dynamic segments and returns null when no pages directory is present.
+ */
 function derivePagesRouterPattern(normPath: string): string | null {
   const pagesIndex = normPath.lastIndexOf("pages/");
   if (pagesIndex < 0) return null;

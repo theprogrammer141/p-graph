@@ -357,6 +357,10 @@ export class Resolver {
     return { pattern: best.pattern, candidates };
   }
 
+  /**
+   * Finds and caches the nearest supported configuration while walking up from a directory.
+   * Falls back to default compiler options when no configuration is found.
+   */
   private configFor(absDir: string): LoadedConfig {
     const cached = this.configByDir.get(absDir);
     if (cached) return cached;

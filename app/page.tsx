@@ -10,6 +10,10 @@ import { DashboardTable, type AnalysisItem } from "@/app/components/dashboard-ta
 // organization changes the token, and the same query returns different rows.
 // If another organization's row ever appears here, the policy is wrong.
 
+/**
+ * Loads up to 100 recent analyses visible through organization RLS for the dashboard.
+ * Shows an organization prompt or query error when the list cannot be displayed.
+ */
 export default async function Home() {
   const { orgId } = await auth();
 
