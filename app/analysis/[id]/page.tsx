@@ -13,6 +13,25 @@ interface AnalysisPageProps {
   params: Promise<{ id: string }>;
 }
 
+// PostgREST returns at most this many rows per request (Supabase's default
+// max_rows). Without paging, a large repository silently loses nodes and edges.
+const PAGE_SIZE = 1000;
+
+async function fetchAllPages<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) return { data: rows, error };
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return { data: rows, error: null };
+  }
+}
+
 /**
  * Loads an accessible analysis and renders its progress or reconstructed graph.
  * Redirects when no organization is selected and returns not found for missing data.
@@ -52,6 +71,9 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     return (
       <main className="flex-1 flex flex-col h-[calc(100vh-2.75rem)] overflow-hidden">
         <AnalysisProgress
+          // Remount when the server state changes, so a refresh after a missed
+          // broadcast replaces stale client state instead of being ignored.
+          key={`${analysis.status}:${analysis.stage}:${analysis.created_at}`}
           analysisId={analysis.id}
           repoOwner={project.owner}
           repoName={project.name}
@@ -73,14 +95,22 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     { data: routesData, error: routesError },
     { data: rolesData, error: rolesError },
   ] = await Promise.all([
-    supabase
-      .from("files")
-      .select("id, path, lines, sha256")
-      .eq("analysis_id", id),
-    supabase
-      .from("edges")
-      .select("id, source_file_id, target_file_id, kind, type_only")
-      .eq("analysis_id", id),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("files")
+        .select("id, path, lines, sha256")
+        .eq("analysis_id", id)
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("edges")
+        .select("id, source_file_id, target_file_id, kind, type_only")
+        .eq("analysis_id", id)
+        .order("id")
+        .range(from, to),
+    ),
     supabase
       .from("routes")
       .select("id, file_id, method, path")

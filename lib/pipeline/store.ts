@@ -13,11 +13,16 @@ export async function storeAnalysisData(
   analysisId: string,
   result: ParseResult,
 ): Promise<{ fileCount: number; edgeCount: number; routeCount: number; roleCount: number }> {
-  // If re-running an analysis, clean up previous data
-  await supabase.from("edges").delete().eq("analysis_id", analysisId);
-  await supabase.from("routes").delete().eq("analysis_id", analysisId);
-  await supabase.from("file_roles").delete().eq("analysis_id", analysisId);
-  await supabase.from("files").delete().eq("analysis_id", analysisId);
+  // If re-running an analysis, clean up previous data. A failed delete must stop
+  // here: inserting on top of leftover rows would mix two runs into one graph.
+  const { error: edgesDeleteError } = await supabase.from("edges").delete().eq("analysis_id", analysisId);
+  if (edgesDeleteError) throw new Error(`Failed to clear previous edges: ${edgesDeleteError.message}`);
+  const { error: routesDeleteError } = await supabase.from("routes").delete().eq("analysis_id", analysisId);
+  if (routesDeleteError) throw new Error(`Failed to clear previous routes: ${routesDeleteError.message}`);
+  const { error: rolesDeleteError } = await supabase.from("file_roles").delete().eq("analysis_id", analysisId);
+  if (rolesDeleteError) throw new Error(`Failed to clear previous file roles: ${rolesDeleteError.message}`);
+  const { error: filesDeleteError } = await supabase.from("files").delete().eq("analysis_id", analysisId);
+  if (filesDeleteError) throw new Error(`Failed to clear previous files: ${filesDeleteError.message}`);
 
   // 1. Insert files in batches and map path -> database file ID
   const fileIdMap = new Map<string, string>();

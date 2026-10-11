@@ -83,9 +83,12 @@ export function AnalysisProgress({
 
             if (payload.stage) setStage(payload.stage);
             if (payload.message !== undefined) setMessage(payload.message);
-            if (payload.status) setStatus(payload.status);
-            if (payload.error) setError(payload.error);
-            if (payload.failed_stage) setFailedStage(payload.failed_stage);
+            if (payload.status) {
+              setStatus(payload.status);
+              // Assign nulls too, so a rerun clears the previous failure.
+              setError(payload.error ?? null);
+              setFailedStage(payload.failed_stage ?? null);
+            }
 
             if (payload.status === "complete") {
               router.refresh();

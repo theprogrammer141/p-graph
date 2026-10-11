@@ -122,13 +122,14 @@ export async function runAnalysis({
 
   /** Writes the current pipeline stage and progress message to the analysis row. */
   const updateStage = async (stage: PipelineStage, message: string) => {
-    await supabase
+    const { error } = await supabase
       .from("analyses")
       .update({
         stage,
         stage_message: message,
       })
       .eq("id", analysisId);
+    if (error) throw new Error(`Failed to record stage "${stage}": ${error.message}`);
   };
 
   // 4. Run pipeline with top-level error handling
@@ -186,7 +187,7 @@ export async function runAnalysis({
     }
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    await supabase
+    const { error: failureWriteError } = await supabase
       .from("analyses")
       .update({
         status: "failed",
@@ -197,6 +198,11 @@ export async function runAnalysis({
         finished_at: new Date().toISOString(),
       })
       .eq("id", analysisId);
+
+    // Log rather than throw: the pipeline error is the one worth surfacing.
+    if (failureWriteError) {
+      console.error(`Failed to record failure for analysis ${analysisId}:`, failureWriteError.message);
+    }
 
     throw err;
   }
