@@ -191,7 +191,7 @@ result2 = agent.invoke(
     Command(resume={
         "decisions": [{
             "type": "reject",
-            "feedback": "Cannot delete customer data without manager approval",
+            "message": "Cannot delete customer data without manager approval",
         }]
     }),
     config=config

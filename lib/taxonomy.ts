@@ -75,6 +75,7 @@ export function countTaxonomyCategories(
     for (const f of files) {
       if (
         f.role === cat.label ||
+        f.role === cat.id ||
         (!f.role && cat.id === "generic") ||
         (f.role === "Generic" && cat.id === "generic")
       ) {

@@ -56,9 +56,10 @@ let records = [];
 let offset = 0;
 while (true) {
   const chunk = await tools.readFile({ file_path: "/data.txt", offset, limit: 500 });
-  const lines = chunk.split("\n").filter(l => l.trim());
+  const rawLines = chunk.split("\n");
+  const lines = rawLines.filter(l => l.trim());
   for (const l of lines) { records.push({ id: `r${records.length}`, text: l }); }
-  if (lines.length < 500) break;
+  if (rawLines.length < 500) break;
   offset += 500;
 }
 const table = await create({ tasks: records });

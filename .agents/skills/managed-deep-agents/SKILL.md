@@ -124,7 +124,7 @@ Check requests against this list *before* agreeing to build them. Being straight
 | Limit | Consequence |
 | --- | --- |
 | US LangSmith Cloud only | No self-hosted, no hybrid, no EU region. Needs `langgraph deploy`. |
-| No public management API | Use `mda` or LangSmith's GitHub deployment UI to create and update agents. Do not invent a public create/update REST flow. |
+| Limited public management API | Agent creation lacks public API support (use `mda` or LangSmith's GitHub deployment UI); listing and updating agents can be performed through the documented API. |
 | Slack is the only channel | No Discord, Teams, email, or SMS channel. Remote MCP servers for those products are tools, not channels. |
 | Memory is deployment-shared | One `/memories/agent/` tree for **all** callers. There is no per-user memory. |
 | One agent entry per project | No multiple graphs in one project. Use `subagents=` for delegation. |

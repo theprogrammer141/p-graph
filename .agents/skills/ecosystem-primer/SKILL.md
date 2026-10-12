@@ -109,7 +109,7 @@ A compiled LangGraph graph can be registered as a named subagent inside Deep Age
 
 ## Step 2 — Set Environment Variables
 
-Always set these for observability. These are the current LangSmith env var names. Copy them as-is. OLDER NAMES NO LONGER WORK.
+Tracing and the API key are optional by default. Set these if the user requests observability. These are the current LangSmith env var names. Copy them as-is. OLDER NAMES NO LONGER WORK.
 
 <environment-variables>
 LANGSMITH_API_KEY=<your-key>

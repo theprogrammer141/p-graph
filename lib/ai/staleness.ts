@@ -37,7 +37,11 @@ export async function checkFileStaleness(params: {
     }
 
     // HEAD has moved past analysed commit. Check if this specific file's content changed.
-    const rawFileUrl = `https://raw.githubusercontent.com/${owner}/${name}/${latestCommitSha}/${filePath}`;
+    const encodedPath = filePath
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    const rawFileUrl = `https://raw.githubusercontent.com/${owner}/${name}/${latestCommitSha}/${encodedPath}`;
     const res = await fetch(rawFileUrl, {
       signal: AbortSignal.timeout(10_000),
       headers: { "User-Agent": "p-graph" },

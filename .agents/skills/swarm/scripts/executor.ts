@@ -22,7 +22,13 @@ declare const tools: {
 /**
  * Column names that must not be overwritten by structured output merging.
  */
-const RESERVED_COLUMNS = new Set(["id", "file"]);
+const RESERVED_COLUMNS = new Set([
+  "id",
+  "file",
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
 
 /**
  * Call the PTC `swarm_task` tool.

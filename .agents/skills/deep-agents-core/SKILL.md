@@ -284,7 +284,7 @@ agent = create_deep_agent(
 
 ### What Agents CANNOT Configure
 
-- Core middleware removal (TodoList, Filesystem, SubAgent always present)
+- Core middleware removal (only TodoList and Filesystem are always present; SubAgentMiddleware is conditional on synchronous subagents being available, since the general-purpose subagent can be disabled)
 - The write_todos, task, or filesystem tool names
 - The SKILL.md frontmatter format
 </boundaries>

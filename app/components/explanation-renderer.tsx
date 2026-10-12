@@ -75,24 +75,35 @@ function RenderSegment({
 }) {
   const parts = useMemo(() => {
     const text = segment.text;
-    // Match potential file paths (alphanumeric, slashes, dashes, dots)
-    const pathRegex = /[a-zA-Z0-9_./-]+\.[a-zA-Z0-9]+/g;
+    if (knownFiles.size === 0 || !text) {
+      return [{ isPath: false, text }];
+    }
+
+    const sortedFiles = Array.from(knownFiles)
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+
+    if (sortedFiles.length === 0) {
+      return [{ isPath: false, text }];
+    }
+
+    const escapedPattern = sortedFiles
+      .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    const pathRegex = new RegExp(escapedPattern, "g");
     const items: Array<{ isPath: boolean; text: string }> = [];
     let last = 0;
     let m: RegExpExecArray | null;
 
     while ((m = pathRegex.exec(text)) !== null) {
-      const candidate = m[0].replace(/^[.,:;()]+|[.,:;()]+$/g, "");
-      const index = text.indexOf(candidate, last);
+      const matchText = m[0];
+      const matchIndex = m.index;
 
-      if (knownFiles.has(candidate)) {
-        if (index > last) {
-          items.push({ isPath: false, text: text.slice(last, index) });
-        }
-        items.push({ isPath: true, text: candidate });
-        last = index + candidate.length;
-        pathRegex.lastIndex = last;
+      if (matchIndex > last) {
+        items.push({ isPath: false, text: text.slice(last, matchIndex) });
       }
+      items.push({ isPath: true, text: matchText });
+      last = matchIndex + matchText.length;
     }
 
     if (last < text.length) {

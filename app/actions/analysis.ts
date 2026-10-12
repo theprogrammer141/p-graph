@@ -259,6 +259,7 @@ export async function reanalyseRepoAction(analysisId: string): Promise<void | ne
       created_at: new Date().toISOString(),
     })
     .eq("id", analysisId)
+    .in("status", ["complete", "failed"])
     .select("id")
     .maybeSingle();
 

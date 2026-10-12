@@ -370,7 +370,14 @@ async function evict(): Promise<void> {
   const toEvict = files.slice(0, files.length - MAX_TABLES + 1);
   for (const filePath of toEvict) {
     const id = extractIdFromPath(filePath);
-    const prev = id ? cache.get(id)?.lastWritten : undefined;
+    let prev = id ? cache.get(id)?.lastWritten : undefined;
+    if (prev === undefined) {
+      try {
+        prev = await readFile(filePath);
+      } catch {
+        // Non-fatal if readFile fails
+      }
+    }
     if (id) {
       cache.delete(id);
     }
@@ -530,7 +537,7 @@ export async function loadTable(
   }
 
   const rows = parseJsonl(content);
-  cache.set(id, { rows, path: match, lastWritten: serializeJsonl(rows) });
+  cache.set(id, { rows, path: match, lastWritten: content });
 
   return rows;
 }

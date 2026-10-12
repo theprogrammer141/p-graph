@@ -114,45 +114,39 @@ export async function explainFileAction(params: {
     ),
   );
 
-  // 5. Check staleness against repository
-  let isStale = false;
-  let stalenessReason: string | undefined;
+  // 5. Run staleness check concurrently with explainFileTraced
+  const stalenessPromise =
+    project?.owner && project?.name
+      ? checkFileStaleness({
+          owner: project.owner,
+          name: project.name,
+          filePath: targetFile.path,
+          analysisCommitSha: analysis.commit_sha,
+          storedSha256: targetFile.sha256 ?? "",
+        })
+      : Promise.resolve({ isStale: false, reason: undefined });
 
-  if (project?.owner && project?.name) {
-    const staleness = await checkFileStaleness({
-      owner: project.owner,
-      name: project.name,
-      filePath: targetFile.path,
-      analysisCommitSha: analysis.commit_sha,
-      storedSha256: targetFile.sha256 ?? "",
-    });
+  const explainPromise = explainFileTraced({
+    supabase,
+    analysisId,
+    orgId,
+    fileId: targetFile.id,
+    filePath: targetFile.path,
+    fileSha256: targetFile.sha256 ?? "",
+    lines: targetFile.lines ?? 0,
+    role: roleRow?.role,
+    neighbours: { imports, importedBy },
+  });
 
-    if (staleness.isStale) {
-      isStale = true;
-      stalenessReason = staleness.reason;
-    }
-  }
-
-  // 6. Invoke traced explanation (cache read inside trace)
   try {
-    const result = await explainFileTraced({
-      supabase,
-      analysisId,
-      orgId,
-      fileId: targetFile.id,
-      filePath: targetFile.path,
-      fileSha256: targetFile.sha256 ?? "",
-      lines: targetFile.lines ?? 0,
-      role: roleRow?.role,
-      neighbours: { imports, importedBy },
-    });
+    const [staleness, result] = await Promise.all([stalenessPromise, explainPromise]);
 
     return {
       ok: true,
       content: result.content,
       cached: result.cached,
-      isStale,
-      stalenessReason,
+      isStale: staleness.isStale,
+      stalenessReason: staleness.reason,
       model: result.model,
     };
   } catch (err: unknown) {

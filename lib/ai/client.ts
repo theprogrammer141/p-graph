@@ -28,19 +28,20 @@ export function getAIClient(): OpenAI {
     return wrappedAIClient;
   }
 
-  const apiKey =
-    process.env.OPENROUTER_API_KEY ||
-    process.env.OPENAI_API_KEY;
+  let apiKey: string;
+  let baseURL: string | undefined;
 
-  if (!apiKey) {
+  if (process.env.OPENROUTER_API_KEY) {
+    apiKey = process.env.OPENROUTER_API_KEY;
+    baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+  } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL) {
+    apiKey = process.env.OPENAI_API_KEY;
+    baseURL = process.env.OPENAI_BASE_URL;
+  } else {
     throw new Error(
-      "Missing AI API key. Please set OPENROUTER_API_KEY or OPENAI_API_KEY in .env.local."
+      `Missing AI API key. Please set OPENROUTER_API_KEY in .env.local to access ${PINNED_MODEL}.`,
     );
   }
-
-  const baseURL =
-    process.env.OPENAI_BASE_URL ||
-    (process.env.OPENROUTER_API_KEY ? "https://openrouter.ai/api/v1" : undefined);
 
   const rawClient = new OpenAI({
     apiKey,

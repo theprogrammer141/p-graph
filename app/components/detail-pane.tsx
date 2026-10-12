@@ -191,6 +191,18 @@ function ExplanationTab({
   const [tracingConfigured, setTracingConfigured] = useState<boolean | null>(null);
   const [reanalysing, setReanalysing] = useState(false);
 
+  const targetKey =
+    selection === null
+      ? "repo"
+      : selection.kind === "file"
+      ? `file:${selection.path}`
+      : `folder:${selection.dir}`;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setError(null);
+  }, [targetKey]);
+
   useEffect(() => {
     getTracingStatusAction()
       .then((res) => setTracingConfigured(res.configured))
@@ -210,13 +222,6 @@ function ExplanationTab({
       : selection.dir === "."
       ? "(root)"
       : selection.dir;
-
-  const targetKey =
-    selection === null
-      ? "repo"
-      : selection.kind === "file"
-      ? `file:${selection.path}`
-      : `folder:${selection.dir}`;
 
   const cached = cachedExplanations.get(targetKey);
 

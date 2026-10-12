@@ -38,10 +38,14 @@ export interface ExplainResult {
  * Computes a deterministic cache key for a file explanation.
  * Changing the pinned model invalidates only its own cache.
  */
-export function computeFileCacheKey(model: string, sha256: string): string {
+export function computeFileCacheKey(
+  model: string,
+  filePath: string,
+  sha256: string,
+): string {
   return crypto
     .createHash("sha256")
-    .update(`v1:explain_file:${model}:${sha256}`)
+    .update(`v1:explain_file:${model}:${filePath}:${sha256}`)
     .digest("hex");
 }
 
@@ -108,7 +112,7 @@ export const explainFileTraced = traceable(
       neighbours,
     } = params;
 
-    const cacheKey = computeFileCacheKey(PINNED_MODEL, fileSha256);
+    const cacheKey = computeFileCacheKey(PINNED_MODEL, filePath, fileSha256);
 
     // 1. Cache read happens inside the traced call
     const { data: cached } = await supabase
@@ -116,6 +120,7 @@ export const explainFileTraced = traceable(
       .select("id, content, content_hash, model, cache_key")
       .eq("analysis_id", analysisId)
       .eq("cache_key", cacheKey)
+      .limit(1)
       .maybeSingle();
 
     if (cached) {
@@ -165,17 +170,24 @@ Explain what this file does in the architecture based on its actual neighbours.`
       completion.choices[0]?.message?.content?.trim() ?? "No explanation returned by model.";
 
     // 3. Store in database cache
-    await supabase.from("explanations").insert({
-      org_id: orgId,
-      analysis_id: analysisId,
-      file_id: fileId,
-      target_type: "file",
-      target_path: filePath,
-      content,
-      model: PINNED_MODEL,
-      content_hash: fileSha256,
-      cache_key: cacheKey,
-    });
+    const { error: insertError } = await supabase.from("explanations").upsert(
+      {
+        org_id: orgId,
+        analysis_id: analysisId,
+        file_id: fileId,
+        target_type: "file",
+        target_path: filePath,
+        content,
+        model: PINNED_MODEL,
+        content_hash: fileSha256,
+        cache_key: cacheKey,
+      },
+      { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
+    );
+
+    if (insertError) {
+      console.warn("Failed to cache file explanation:", insertError);
+    }
 
     return {
       content,
@@ -212,6 +224,7 @@ export const explainFolderTraced = traceable(
       .select("id, content, content_hash, model, cache_key")
       .eq("analysis_id", analysisId)
       .eq("cache_key", cacheKey)
+      .limit(1)
       .maybeSingle();
 
     if (cached) {
@@ -266,17 +279,24 @@ Explain what is in this folder and why so much points at it.`;
       completion.choices[0]?.message?.content?.trim() ?? "No explanation returned by model.";
 
     // 3. Store in database cache
-    await supabase.from("explanations").insert({
-      org_id: orgId,
-      analysis_id: analysisId,
-      file_id: null,
-      target_type: "folder",
-      target_path: folderPath,
-      content,
-      model: PINNED_MODEL,
-      content_hash: folderContentHash,
-      cache_key: cacheKey,
-    });
+    const { error: insertError } = await supabase.from("explanations").upsert(
+      {
+        org_id: orgId,
+        analysis_id: analysisId,
+        file_id: null,
+        target_type: "folder",
+        target_path: folderPath,
+        content,
+        model: PINNED_MODEL,
+        content_hash: folderContentHash,
+        cache_key: cacheKey,
+      },
+      { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
+    );
+
+    if (insertError) {
+      console.warn("Failed to cache folder explanation:", insertError);
+    }
 
     return {
       content,
@@ -314,12 +334,15 @@ export const classifyFileRoleTraced = traceable(
       .eq("file_id", fileId)
       .maybeSingle();
 
-    if (existingRole && existingRole.role && existingRole.role !== "Generic" && existingRole.role !== "Unidentified") {
+    if (
+      existingRole &&
+      existingRole.role &&
+      existingRole.role !== "Generic" &&
+      existingRole.role !== "Unidentified"
+    ) {
       const roleStr = existingRole.role.toLowerCase();
       const valid = ALLOWED_AI_ROLES.find((r) => r === roleStr);
-      if (valid) {
-        return { role: valid, cached: true };
-      }
+      return { role: (valid ?? existingRole.role) as AllowedAIRole, cached: true };
     }
 
     // 2. Cache miss: classify using model
@@ -362,19 +385,31 @@ What non-structural role fits this file? (service, repository, model, util, conf
 
     // 3. Upsert into file_roles table with source = 'ai'
     if (existingRole) {
-      await supabase
+      const { data, error } = await supabase
         .from("file_roles")
         .update({ role: matched, source: "ai" })
         .eq("analysis_id", analysisId)
-        .eq("file_id", fileId);
+        .eq("file_id", fileId)
+        .select("file_id");
+
+      if (error) {
+        throw new Error(`Failed to update file role: ${error.message}`);
+      }
+      if (!data || data.length === 0) {
+        throw new Error("Failed to update file role: no row was updated");
+      }
     } else {
-      await supabase.from("file_roles").insert({
+      const { error } = await supabase.from("file_roles").insert({
         org_id: orgId,
         analysis_id: analysisId,
         file_id: fileId,
         role: matched,
         source: "ai",
       });
+
+      if (error) {
+        throw new Error(`Failed to insert file role: ${error.message}`);
+      }
     }
 
     return { role: matched, cached: false };
