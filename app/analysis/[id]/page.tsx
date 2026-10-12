@@ -204,13 +204,16 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   return (
     <main className="flex-1 flex flex-col h-[calc(100vh-2.75rem)] overflow-hidden">
       <WorkspaceShell
+        analysisId={analysis.id}
+        repoOwner={project.owner}
+        repoName={project.name}
+        commitSha={analysis.commit_sha ?? null}
         categories={categories}
         totalFiles={reconstructedFiles.length}
         files={reconstructedFiles}
         edges={reconstructedEdges}
         edgeCount={reconstructedEdges.length}
         adapter={analysis.adapter ?? "none"}
-        repoName={project.name}
         coverage={coverage}
         routes={reconstructedRoutes}
       />

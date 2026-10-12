@@ -141,27 +141,42 @@ export type Database = {
       explanations: {
         Row: {
           analysis_id: string
+          cache_key: string | null
           content: string
+          content_hash: string | null
           created_at: string
-          file_id: string
+          file_id: string | null
           id: string
+          model: string | null
           org_id: string
+          target_path: string | null
+          target_type: string
         }
         Insert: {
           analysis_id: string
+          cache_key?: string | null
           content: string
+          content_hash?: string | null
           created_at?: string
-          file_id: string
+          file_id?: string | null
           id?: string
+          model?: string | null
           org_id: string
+          target_path?: string | null
+          target_type?: string
         }
         Update: {
           analysis_id?: string
+          cache_key?: string | null
           content?: string
+          content_hash?: string | null
           created_at?: string
-          file_id?: string
+          file_id?: string | null
           id?: string
+          model?: string | null
           org_id?: string
+          target_path?: string | null
+          target_type?: string
         }
         Relationships: [
           {

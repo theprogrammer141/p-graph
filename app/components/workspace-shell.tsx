@@ -21,6 +21,9 @@ export type SelectionTarget =
   | null;
 
 interface WorkspaceShellProps {
+  analysisId?: string;
+  repoOwner?: string;
+  commitSha?: string | null;
   categories?: CategorySummary[];
   totalFiles: number;
   files: readonly FileNode[];
@@ -34,6 +37,7 @@ interface WorkspaceShellProps {
 
 /** Coordinates graph selection, expanded folders, category filters, coverage, and detail views. */
 export function WorkspaceShell({
+  analysisId,
   totalFiles,
   files,
   edges,
@@ -50,20 +54,45 @@ export function WorkspaceShell({
   const [openCount, setOpenCount] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const prepared = useMemo(() => prepare(files, edges), [files, edges]);
-  const filesByPath = useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
+  // In-memory cache for explanations so moving away and returning is instant
+  const [cachedExplanations, setCachedExplanations] = useState<
+    Map<string, { content: string; isStale?: boolean; stalenessReason?: string; cached?: boolean; model?: string }>
+  >(new Map());
+
+  const handleSaveExplanation = (
+    key: string,
+    data: { content: string; isStale?: boolean; stalenessReason?: string; cached?: boolean; model?: string },
+  ) => {
+    setCachedExplanations((prev) => new Map(prev).set(key, data));
+  };
+
+  // Dynamically assigned roles for unlabelled files
+  const [dynamicRoles, setDynamicRoles] = useState<Map<string, string>>(new Map());
+  const handleRoleAssigned = (filePath: string, role: string) => {
+    setDynamicRoles((prev) => new Map(prev).set(filePath, role));
+  };
+
+  const effectiveFiles = useMemo(() => {
+    if (dynamicRoles.size === 0) return files;
+    return files.map((f) =>
+      dynamicRoles.has(f.path) ? { ...f, role: dynamicRoles.get(f.path) } : f,
+    );
+  }, [files, dynamicRoles]);
+
+  const prepared = useMemo(() => prepare(effectiveFiles, edges), [effectiveFiles, edges]);
+  const filesByPath = useMemo(() => new Map(effectiveFiles.map((f) => [f.path, f])), [effectiveFiles]);
 
   const taxonomyCategories = useMemo(
-    () => countTaxonomyCategories(files, adapter),
-    [files, adapter],
+    () => countTaxonomyCategories(effectiveFiles, adapter),
+    [effectiveFiles, adapter],
   );
 
   const repoSummary = useMemo(
-    () => buildRepoSummary(files, edges, { repoName, adapter, routeCount: routes.length }),
-    [files, edges, repoName, adapter, routes.length],
+    () => buildRepoSummary(effectiveFiles, edges, { repoName, adapter, routeCount: routes.length }),
+    [effectiveFiles, edges, repoName, adapter, routes.length],
   );
 
-  const insights = useMemo(() => buildInsights(files, edges), [files, edges]);
+  const insights = useMemo(() => buildInsights(effectiveFiles, edges), [effectiveFiles, edges]);
 
   const fileDetail = useMemo(
     () =>
@@ -223,6 +252,7 @@ export function WorkspaceShell({
 
       {/* Right column: detail pane */}
       <DetailPane
+        analysisId={analysisId}
         selection={selection}
         repoSummary={repoSummary}
         fileDetail={fileDetail}
@@ -230,13 +260,17 @@ export function WorkspaceShell({
         insights={insights}
         edges={edges}
         routes={routes}
+        allFiles={effectiveFiles}
         activeTab={activeTab}
         hoveredTarget={hoveredTarget}
+        cachedExplanations={cachedExplanations}
         groupOfFile={(p) => prepared.fold.groupOf.get(p)}
         onTabChange={setActiveTab}
         onSelectFile={handleSelectFile}
         onDeselect={handleDeselect}
         onHover={handleHover}
+        onSaveExplanation={handleSaveExplanation}
+        onRoleAssigned={handleRoleAssigned}
       />
     </div>
   );

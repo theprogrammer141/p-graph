@@ -220,3 +220,66 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
 
   redirect(`/analysis/${analysisId}`);
 }
+
+/**
+ * Triggers a fresh re-analysis of a repository when it is stale or out of date.
+ */
+export async function reanalyseRepoAction(analysisId: string): Promise<void | never> {
+  const { orgId } = await auth();
+  if (!orgId) {
+    throw new Error("Organization required.");
+  }
+
+  const supabase = await createClerkSupabaseClient();
+
+  const { data: analysis, error } = await supabase
+    .from("analyses")
+    .select("id, org_id, status, created_at, stage, project:projects(repo_url)")
+    .eq("id", analysisId)
+    .single();
+
+  if (error || !analysis) {
+    throw new Error(`Analysis not found: ${error?.message}`);
+  }
+
+  const project = analysis.project as { repo_url: string } | null;
+  if (!project?.repo_url) {
+    throw new Error("Repository URL not found for analysis.");
+  }
+
+  const { data: reset, error: resetError } = await supabase
+    .from("analyses")
+    .update({
+      status: "parsing",
+      stage: "fetch",
+      stage_message: "Fetching updated repository archive...",
+      error: null,
+      failed_stage: null,
+      finished_at: null,
+      created_at: new Date().toISOString(),
+    })
+    .eq("id", analysisId)
+    .select("id")
+    .maybeSingle();
+
+  if (resetError) throw new Error(`Failed to restart analysis: ${resetError.message}`);
+  if (!reset) redirect(`/analysis/${analysisId}`);
+
+  after(async () => {
+    const admin = createAdminSupabaseClient();
+    try {
+      await runAnalysis({
+        supabase: admin,
+        orgId,
+        analysisId,
+        repoUrl: project.repo_url,
+        forceRerun: true,
+      });
+    } catch (err) {
+      console.error("Pipeline re-analysis encountered error:", err);
+    }
+  });
+
+  redirect(`/analysis/${analysisId}`);
+}
+
