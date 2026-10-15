@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
-import { traceable } from "langsmith/traceable";
+import { getCurrentRunTree, traceable } from "langsmith/traceable";
+import { Client } from "langsmith";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { getAIClient, PINNED_MODEL } from "./client";
+import { getAIClient, isTracingConfigured, PINNED_MODEL } from "./client";
+import { checkInventedPaths } from "./invented-paths";
 
 export const ALLOWED_AI_ROLES = [
   "service",
@@ -34,6 +36,84 @@ export interface ExplainResult {
   readonly cacheKey: string;
 }
 
+const FALLBACK_EXPLANATION = "No explanation returned by model.";
+const MAX_FOLDER_FILES_IN_PROMPT = 30;
+const MAX_FOLDER_NEIGHBOURS_IN_PROMPT = 25;
+const MAX_ROLE_NEIGHBOURS_IN_PROMPT = 15;
+const UNCLASSIFIED_ROLE_LABELS = new Set(["generic", "unidentified"]);
+
+function isAllowedAIRole(value: string): value is AllowedAIRole {
+  return (ALLOWED_AI_ROLES as readonly string[]).includes(value);
+}
+
+function formatBulletList(items: readonly string[], limit?: number): string {
+  const sliced = typeof limit === "number" ? items.slice(0, limit) : items;
+  return sliced.length > 0 ? sliced.map((item) => `- ${item}`).join("\n") : "(none)";
+}
+
+/**
+ * Parses a raw LLM role classification response using exact and word-boundary matching
+ * to prevent substring false positives (e.g., "webhook" matching "hook").
+ */
+function parseClassifiedRole(raw: string): AllowedAIRole {
+  const cleaned = raw.trim().toLowerCase().replace(/^['"`]+|['"`.,!?;:]+\$/g, "");
+  if (!cleaned) return "util";
+
+  if (isAllowedAIRole(cleaned)) {
+    return cleaned;
+  }
+
+  for (const token of cleaned.split(/\s+/)) {
+    const stripped = token.replace(/[^a-z]/g, "");
+    if (isAllowedAIRole(stripped)) {
+      return stripped;
+    }
+  }
+
+  for (const role of ALLOWED_AI_ROLES) {
+    const boundaryRegex = new RegExp(`\\b${role}\\b`, "i");
+    if (boundaryRegex.test(cleaned)) {
+      return role;
+    }
+  }
+
+  return "util";
+}
+
+/**
+ * Evaluates generated explanation text for invented paths and logs feedback to LangSmith when tracing is active.
+ */
+async function recordInventedPathFeedback(
+  content: string,
+  shownPaths: readonly string[],
+): Promise<void> {
+  const evalResult = checkInventedPaths(content, shownPaths);
+
+  if (!isTracingConfigured()) {
+    return;
+  }
+
+  try {
+    const runTree = getCurrentRunTree();
+    if (!runTree?.id) return;
+
+    const langsmithClient = new Client({
+      apiKey: process.env.LANGSMITH_API_KEY,
+      apiUrl: process.env.LANGSMITH_ENDPOINT,
+    });
+
+    await langsmithClient.createFeedback(runTree.id, "invented_path", {
+      score: evalResult.score,
+      comment:
+        evalResult.inventedPaths.length > 0
+          ? `Invented paths: ${evalResult.inventedPaths.join(", ")}`
+          : "All referenced paths were shown in input context",
+    });
+  } catch (err) {
+    console.warn("Live evaluator feedback failed:", err);
+  }
+}
+
 /**
  * Computes a deterministic cache key for a file explanation.
  * Changing the pinned model invalidates only its own cache.
@@ -55,7 +135,9 @@ export function computeFileCacheKey(
 export function computeFolderContentHash(
   files: readonly { readonly path: string; readonly sha256?: string }[],
 ): string {
-  const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : 1));
+  const sorted = [...files].sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+  );
   const raw = sorted.map((f) => `${f.path}:${f.sha256 ?? ""}`).join("\n");
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
@@ -123,7 +205,7 @@ export const explainFileTraced = traceable(
       .limit(1)
       .maybeSingle();
 
-    if (cached) {
+    if (cached && cached.content) {
       return {
         content: cached.content,
         cached: true,
@@ -136,25 +218,29 @@ export const explainFileTraced = traceable(
     // 2. Cache miss: invoke AI model through wrapped client
     const client = getAIClient();
 
-    const systemPrompt = `You are a concise codebase explainer. Explain what this file does specifically in the context of its actual neighbours in the dependency graph.
+    const systemPrompt = [
+      "You are a concise codebase explainer. Explain what this file does specifically in the context of its actual neighbours in the dependency graph.",
+      "",
+      "Formatting rules:",
+      "- Use EXACTLY three pieces of formatting: inline code (`code`), bold (**bold**), and bullets (- bullet).",
+      "- NO headings of any kind (do NOT use #, ##, ###, etc.).",
+      "- When referencing other files, mention their exact repository path so the developer can click them.",
+      "- Keep the explanation dense, informative, and short (1-2 paragraphs).",
+      "- Do NOT guess or invent connections. Every neighbour was extracted by parsing the code.",
+    ].join("\n");
 
-Formatting rules:
-- Use EXACTLY three pieces of formatting: inline code (\`code\`), bold (**bold**), and bullets (- bullet).
-- NO headings of any kind (do NOT use #, ##, ###, etc.).
-- When referencing other files, mention their exact repository path so the developer can click them.
-- Keep the explanation dense, informative, and short (1-2 paragraphs).
-- Do NOT guess or invent connections. Every neighbour was extracted by parsing the code.`;
-
-    const userPrompt = `File: ${filePath}
-Lines: ${lines}
-${role ? `Current Role: ${role}\n` : ""}\
-Imports (${neighbours.imports.length} files):
-${neighbours.imports.length > 0 ? neighbours.imports.map((p) => `- ${p}`).join("\n") : "(none)"}
-
-Imported By (${neighbours.importedBy.length} files):
-${neighbours.importedBy.length > 0 ? neighbours.importedBy.map((p) => `- ${p}`).join("\n") : "(none)"}
-
-Explain what this file does in the architecture based on its actual neighbours.`;
+    const userPrompt = [
+      `File: ${filePath}`,
+      `Lines: ${lines}`,
+      ...(role ? [`Current Role: ${role}`] : []),
+      `Imports (${neighbours.imports.length} files):`,
+      formatBulletList(neighbours.imports),
+      "",
+      `Imported By (${neighbours.importedBy.length} files):`,
+      formatBulletList(neighbours.importedBy),
+      "",
+      "Explain what this file does in the architecture based on its actual neighbours.",
+    ].join("\n");
 
     const completion = await client.chat.completions.create({
       model: PINNED_MODEL,
@@ -166,27 +252,34 @@ Explain what this file does in the architecture based on its actual neighbours.`
       max_tokens: 500,
     });
 
-    const content =
-      completion.choices[0]?.message?.content?.trim() ?? "No explanation returned by model.";
+    const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
+    const hasValidContent = rawContent.length > 0;
+    const content = hasValidContent ? rawContent : FALLBACK_EXPLANATION;
 
-    // 3. Store in database cache
-    const { error: insertError } = await supabase.from("explanations").upsert(
-      {
-        org_id: orgId,
-        analysis_id: analysisId,
-        file_id: fileId,
-        target_type: "file",
-        target_path: filePath,
-        content,
-        model: PINNED_MODEL,
-        content_hash: fileSha256,
-        cache_key: cacheKey,
-      },
-      { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
-    );
+    // 3. Live evaluation: check for invented paths against exact shown paths
+    const shownPaths = [filePath, ...neighbours.imports, ...neighbours.importedBy];
+    await recordInventedPathFeedback(content, shownPaths);
 
-    if (insertError) {
-      console.warn("Failed to cache file explanation:", insertError);
+    // 4. Store in database cache only when a non-empty explanation was generated
+    if (hasValidContent) {
+      const { error: insertError } = await supabase.from("explanations").upsert(
+        {
+          org_id: orgId,
+          analysis_id: analysisId,
+          file_id: fileId,
+          target_type: "file",
+          target_path: filePath,
+          content,
+          model: PINNED_MODEL,
+          content_hash: fileSha256,
+          cache_key: cacheKey,
+        },
+        { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
+      );
+
+      if (insertError) {
+        console.warn("Failed to cache file explanation:", insertError);
+      }
     }
 
     return {
@@ -210,7 +303,11 @@ export const explainFolderTraced = traceable(
     analysisId: string;
     orgId: string;
     folderPath: string;
-    folderFiles: readonly { readonly path: string; readonly sha256?: string; readonly lines?: number }[];
+    folderFiles: readonly {
+      readonly path: string;
+      readonly sha256?: string;
+      readonly lines?: number;
+    }[];
     neighbours: FolderNeighbours;
   }): Promise<ExplainResult> => {
     const { supabase, analysisId, orgId, folderPath, folderFiles, neighbours } = params;
@@ -227,7 +324,7 @@ export const explainFolderTraced = traceable(
       .limit(1)
       .maybeSingle();
 
-    if (cached) {
+    if (cached && cached.content) {
       return {
         content: cached.content,
         cached: true,
@@ -240,30 +337,41 @@ export const explainFolderTraced = traceable(
     // 2. Cache miss: invoke AI model through wrapped client
     const client = getAIClient();
 
-    const systemPrompt = `You are a concise codebase explainer. Explain this directory as a folded unit in the architecture.
+    const systemPrompt = [
+      "You are a concise codebase explainer. Explain this directory as a folded unit in the architecture.",
+      "",
+      "Answer: What is in here, and why does external code point at it?",
+      "Do NOT simply summarize one file. The answer must describe the cohesive purpose of the folder itself.",
+      "",
+      "Formatting rules:",
+      "- Use EXACTLY three pieces of formatting: inline code (`code`), bold (**bold**), and bullets (- bullet).",
+      "- NO headings of any kind (do NOT use #, ##, ###, etc.).",
+      "- When referencing files, use exact repository paths.",
+      "- Keep the explanation dense, informative, and short (1-2 paragraphs).",
+    ].join("\n");
 
-Answer: What is in here, and why does external code point at it?
-Do NOT simply summarize one file. The answer must describe the cohesive purpose of the folder itself.
+    const displayedFiles = folderFiles
+      .slice(0, MAX_FOLDER_FILES_IN_PROMPT)
+      .map((f) => `- ${f.path}`)
+      .join("\n");
+    const remainingFilesNote =
+      folderFiles.length > MAX_FOLDER_FILES_IN_PROMPT
+        ? `\n...and ${folderFiles.length - MAX_FOLDER_FILES_IN_PROMPT} more files`
+        : "";
 
-Formatting rules:
-- Use EXACTLY three pieces of formatting: inline code (\`code\`), bold (**bold**), and bullets (- bullet).
-- NO headings of any kind (do NOT use #, ##, ###, etc.).
-- When referencing files, use exact repository paths.
-- Keep the explanation dense, informative, and short (1-2 paragraphs).`;
-
-    const userPrompt = `Folder: ${folderPath}
-Contains (${folderFiles.length} files):
-${folderFiles.slice(0, 30).map((f) => `- ${f.path}`).join("\n")}${
-      folderFiles.length > 30 ? `\n...and ${folderFiles.length - 30} more files` : ""
-    }
-
-External files importing into this folder (${neighbours.incomingFiles.length}):
-${neighbours.incomingFiles.length > 0 ? neighbours.incomingFiles.slice(0, 25).map((p) => `- ${p}`).join("\n") : "(none)"}
-
-External files this folder imports (${neighbours.outgoingFiles.length}):
-${neighbours.outgoingFiles.length > 0 ? neighbours.outgoingFiles.slice(0, 25).map((p) => `- ${p}`).join("\n") : "(none)"}
-
-Explain what is in this folder and why so much points at it.`;
+    const userPrompt = [
+      `Folder: ${folderPath}`,
+      `Contains (${folderFiles.length} files):`,
+      `${displayedFiles}${remainingFilesNote}`,
+      "",
+      `External files importing into this folder (${neighbours.incomingFiles.length}):`,
+      formatBulletList(neighbours.incomingFiles, MAX_FOLDER_NEIGHBOURS_IN_PROMPT),
+      "",
+      `External files this folder imports (${neighbours.outgoingFiles.length}):`,
+      formatBulletList(neighbours.outgoingFiles, MAX_FOLDER_NEIGHBOURS_IN_PROMPT),
+      "",
+      "Explain what is in this folder and why so much points at it.",
+    ].join("\n");
 
     const completion = await client.chat.completions.create({
       model: PINNED_MODEL,
@@ -275,27 +383,39 @@ Explain what is in this folder and why so much points at it.`;
       max_tokens: 500,
     });
 
-    const content =
-      completion.choices[0]?.message?.content?.trim() ?? "No explanation returned by model.";
+    const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
+    const hasValidContent = rawContent.length > 0;
+    const content = hasValidContent ? rawContent : FALLBACK_EXPLANATION;
 
-    // 3. Store in database cache
-    const { error: insertError } = await supabase.from("explanations").upsert(
-      {
-        org_id: orgId,
-        analysis_id: analysisId,
-        file_id: null,
-        target_type: "folder",
-        target_path: folderPath,
-        content,
-        model: PINNED_MODEL,
-        content_hash: folderContentHash,
-        cache_key: cacheKey,
-      },
-      { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
-    );
+    // 3. Live evaluation: check for invented paths against exact shown paths
+    const shownPaths = [
+      folderPath,
+      ...folderFiles.map((f) => f.path),
+      ...neighbours.incomingFiles,
+      ...neighbours.outgoingFiles,
+    ];
+    await recordInventedPathFeedback(content, shownPaths);
 
-    if (insertError) {
-      console.warn("Failed to cache folder explanation:", insertError);
+    // 4. Store in database cache only when a non-empty explanation was generated
+    if (hasValidContent) {
+      const { error: insertError } = await supabase.from("explanations").upsert(
+        {
+          org_id: orgId,
+          analysis_id: analysisId,
+          file_id: null,
+          target_type: "folder",
+          target_path: folderPath,
+          content,
+          model: PINNED_MODEL,
+          content_hash: folderContentHash,
+          cache_key: cacheKey,
+        },
+        { onConflict: "analysis_id, cache_key", ignoreDuplicates: true },
+      );
+
+      if (insertError) {
+        console.warn("Failed to cache folder explanation:", insertError);
+      }
     }
 
     return {
@@ -334,41 +454,40 @@ export const classifyFileRoleTraced = traceable(
       .eq("file_id", fileId)
       .maybeSingle();
 
-    if (
-      existingRole &&
-      existingRole.role &&
-      existingRole.role !== "Generic" &&
-      existingRole.role !== "Unidentified"
-    ) {
-      const roleStr = existingRole.role.toLowerCase();
-      const valid = ALLOWED_AI_ROLES.find((r) => r === roleStr);
-      return { role: (valid ?? existingRole.role) as AllowedAIRole, cached: true };
+    const normalizedExisting = existingRole?.role?.trim().toLowerCase() ?? "";
+    if (normalizedExisting && !UNCLASSIFIED_ROLE_LABELS.has(normalizedExisting)) {
+      const valid = ALLOWED_AI_ROLES.find((r) => r === normalizedExisting);
+      return { role: (valid ?? existingRole!.role) as AllowedAIRole, cached: true };
     }
 
     // 2. Cache miss: classify using model
     const client = getAIClient();
 
-    const systemPrompt = `You classify source files into a software architecture role.
-You may ONLY respond with one of the following non-structural roles:
-- service
-- repository
-- model
-- util
-- config
-- component
-- hook
+    const systemPrompt = [
+      "You classify source files into a software architecture role.",
+      "You may ONLY respond with one of the following non-structural roles:",
+      "- service",
+      "- repository",
+      "- model",
+      "- util",
+      "- config",
+      "- component",
+      "- hook",
+      "",
+      "You must NEVER answer with structural or routable roles like 'page', 'route', or 'controller'.",
+      "Respond with strictly the single role word, nothing else.",
+    ].join("\n");
 
-You must NEVER answer with structural or routable roles like 'page', 'route', or 'controller'.
-Respond with strictly the single role word, nothing else.`;
-
-    const userPrompt = `File: ${filePath}
-Imports:
-${neighbours.imports.length > 0 ? neighbours.imports.slice(0, 15).map((p) => `- ${p}`).join("\n") : "(none)"}
-
-Imported by:
-${neighbours.importedBy.length > 0 ? neighbours.importedBy.slice(0, 15).map((p) => `- ${p}`).join("\n") : "(none)"}
-
-What non-structural role fits this file? (service, repository, model, util, config, component, hook)`;
+    const userPrompt = [
+      `File: ${filePath}`,
+      "Imports:",
+      formatBulletList(neighbours.imports, MAX_ROLE_NEIGHBOURS_IN_PROMPT),
+      "",
+      "Imported by:",
+      formatBulletList(neighbours.importedBy, MAX_ROLE_NEIGHBOURS_IN_PROMPT),
+      "",
+      "What non-structural role fits this file? (service, repository, model, util, config, component, hook)",
+    ].join("\n");
 
     const completion = await client.chat.completions.create({
       model: PINNED_MODEL,
@@ -377,11 +496,11 @@ What non-structural role fits this file? (service, repository, model, util, conf
         { role: "user", content: userPrompt },
       ],
       temperature: 0.1,
-      max_tokens: 30,
+      max_tokens: 200,
     });
 
-    const raw = completion.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
-    const matched = ALLOWED_AI_ROLES.find((r) => raw.includes(r)) ?? "util";
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const matched = parseClassifiedRole(raw);
 
     // 3. Upsert into file_roles table with source = 'ai'
     if (existingRole) {

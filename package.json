@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "eval:paths": "tsx evals/invented-paths.ts",
+    "eval:roles": "tsx evals/role-accuracy.ts",
+    "eval:prompts": "tsx evals/prompt-comparison.ts",
+    "eval:all": "tsx evals/invented-paths.ts && tsx evals/role-accuracy.ts && tsx evals/prompt-comparison.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",
