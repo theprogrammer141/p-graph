@@ -182,7 +182,7 @@ What does this file do?`;
 async function judgeExplanationQuality(params: {
   inputs: Record<string, unknown>;
   outputs: Record<string, unknown>;
-}): Promise<{ key: string; score: number; comment: string }> {
+}): Promise<{ key: string; score?: number; comment: string }> {
   const client = getAIClient();
   const fileInput = params.inputs as unknown as PromptEvalInput;
   const explanation = (params.outputs?.explanation as string) ?? "";
@@ -235,14 +235,10 @@ Judge this explanation.`;
     }
   }
 
-  // Fallback heuristic if judge model calls hit rate limits
-  const hasHeadings = /^#+\s+/m.test(explanation);
-  const mentionsNeighbours = fileInput.imports.some((p) => explanation.includes(p));
-  const fallbackScore = (hasHeadings ? 0.3 : 0.7) + (mentionsNeighbours ? 0.2 : 0);
+  // Report judge failure as unavailable instead of scoring with an arbitrary fallback
   return {
     key: "utility_and_specificity",
-    score: Math.min(1, fallbackScore),
-    comment: "Heuristic scoring fallback based on headings and neighbour coverage",
+    comment: "Judge model evaluation unavailable (all attempts failed)",
   };
 }
 
@@ -258,7 +254,7 @@ async function main() {
   console.log("Phase 11: Prompt Version Comparison (Current vs Retired)");
   console.log("================================================================================\n");
 
-  // 1. Ensure dataset exists in LangSmith
+  // 1. Ensure dataset exists in LangSmith and has all expected examples
   console.log(`Setting up LangSmith dataset "${DATASET_NAME}"...`);
   let dataset: { id: string } | null = null;
   try {
@@ -270,34 +266,68 @@ async function main() {
       description: "Representative files with actual neighbours for comparing explanation prompt versions",
     });
     console.log(`Created new LangSmith dataset: ${dataset.id}`);
-    for (const ex of EVAL_EXAMPLES) {
-      await client.createExample(ex.inputs, ex.outputs, { datasetId: dataset.id });
+  }
+
+  const existingExamples = new Set<string>();
+  for await (const example of client.listExamples({ datasetId: dataset.id })) {
+    const filePath = (example.inputs as { filePath?: string })?.filePath;
+    if (filePath) {
+      existingExamples.add(filePath);
     }
   }
 
-  // Check existing experiments on this dataset in LangSmith
+  for (const ex of EVAL_EXAMPLES) {
+    if (!existingExamples.has(ex.inputs.filePath)) {
+      await client.createExample(ex.inputs, ex.outputs, { datasetId: dataset.id });
+      existingExamples.add(ex.inputs.filePath);
+    }
+  }
+
+  // Check existing experiments on this dataset paired by comparisonRunId metadata
   let currentProject: { id: string; name: string } | null = null;
   let retiredProject: { id: string; name: string } | null = null;
 
   if (!shouldRerun && dataset) {
+    const pairsByRunId = new Map<
+      string,
+      { current?: { id: string; name: string }; retired?: { id: string; name: string } }
+    >();
+
     for await (const p of client.listProjects({ referenceDatasetId: dataset.id })) {
       const pName = p.name ?? "";
-      if (!currentProject && pName.startsWith("prompt-current-v2-")) {
-        currentProject = { id: p.id, name: pName };
+      const meta = (p.extra?.metadata ?? p.extra ?? {}) as Record<string, unknown>;
+      const runId = typeof meta.comparisonRunId === "string" ? meta.comparisonRunId : null;
+
+      if (runId) {
+        const pair = pairsByRunId.get(runId) ?? {};
+        if (pName.startsWith("prompt-current-v2-")) {
+          pair.current = { id: p.id, name: pName };
+        } else if (pName.startsWith("prompt-retired-v1-")) {
+          pair.retired = { id: p.id, name: pName };
+        }
+        pairsByRunId.set(runId, pair);
       }
-      if (!retiredProject && pName.startsWith("prompt-retired-v1-")) {
-        retiredProject = { id: p.id, name: pName };
+    }
+
+    for (const [, pair] of pairsByRunId) {
+      if (pair.current && pair.retired) {
+        currentProject = pair.current;
+        retiredProject = pair.retired;
+        break;
       }
-      if (currentProject && retiredProject) break;
     }
   }
 
-  // If rerun requested or no existing experiments found, run evaluate()
+  // If rerun requested or no paired existing experiments found, run evaluate()
   if (shouldRerun || !currentProject || !retiredProject) {
+    const comparisonRunId = `compare-${Date.now()}`;
+    console.log(`\nStarting paired comparison run "${comparisonRunId}"...`);
+
     console.log("\nRunning Experiment 1: Current Prompt (v2)...");
     const currentExp = await evaluate(runCurrentPrompt, {
       data: DATASET_NAME,
       experimentPrefix: "prompt-current-v2",
+      metadata: { comparisonRunId, promptVersion: "v2-current" },
       evaluators: [judgeExplanationQuality],
       client,
       maxConcurrency: 1,
@@ -309,6 +339,7 @@ async function main() {
     const retiredExp = await evaluate(runRetiredPrompt, {
       data: DATASET_NAME,
       experimentPrefix: "prompt-retired-v1",
+      metadata: { comparisonRunId, promptVersion: "v1-retired" },
       evaluators: [judgeExplanationQuality],
       client,
       maxConcurrency: 1,
@@ -351,8 +382,15 @@ async function main() {
   console.log("\n================================================================================");
   console.log("SIDE-BY-SIDE PROMPT VERSION EVALUATION RESULTS (LANGSMITH DASHBOARD)");
   console.log("================================================================================");
-  const orgId = "9a7aabf4-564b-4423-ba21-63e700a35d76";
-  const dashboardCompareUrl = `https://apac.smith.langchain.com/o/${orgId}/datasets/${dataset.id}/compare?selectedSessions=${currentProject.id}&selectedSessions=${retiredProject.id}`;
+  let dashboardCompareUrl: string;
+  try {
+    const datasetUrl = await client.getDatasetUrl({ datasetId: dataset.id });
+    dashboardCompareUrl = `${datasetUrl}/compare?selectedSessions=${currentProject.id}&selectedSessions=${retiredProject.id}`;
+  } catch {
+    const endpoint = process.env.LANGSMITH_ENDPOINT || "https://api.smith.langchain.com";
+    const host = endpoint.includes("apac") ? "https://apac.smith.langchain.com" : "https://smith.langchain.com";
+    dashboardCompareUrl = `${host}/datasets/${dataset.id}/compare?selectedSessions=${currentProject.id}&selectedSessions=${retiredProject.id}`;
+  }
   console.log(`Dashboard Compare URL:\n${dashboardCompareUrl}`);
   console.log("--------------------------------------------------------------------------------");
   console.log("File Path".padEnd(42) + "Current (v2)".padEnd(16) + "Retired (v1)".padEnd(16));
@@ -361,16 +399,27 @@ async function main() {
   for (const filePath of testPaths) {
     const cur = currentDetails.get(filePath);
     const ret = retiredDetails.get(filePath);
-    const curScore = cur ? cur.score : 0.9;
-    const retScore = ret ? ret.score : 0.4;
-    currentScores.push(curScore);
-    retiredScores.push(retScore);
+    const curScore = cur?.score;
+    const retScore = ret?.score;
+
+    if (typeof curScore === "number") currentScores.push(curScore);
+    if (typeof retScore === "number") retiredScores.push(retScore);
+
+    const curDisplay = typeof curScore === "number" ? curScore.toFixed(2) : "N/A";
+    const retDisplay = typeof retScore === "number" ? retScore.toFixed(2) : "N/A";
 
     console.log(
       filePath.padEnd(42) +
-        curScore.toFixed(2).padEnd(16) +
-        retScore.toFixed(2).padEnd(16),
+        curDisplay.padEnd(16) +
+        retDisplay.padEnd(16),
     );
+  }
+
+  if (currentScores.length === 0 || retiredScores.length === 0) {
+    console.log("--------------------------------------------------------------------------------");
+    console.error("Error: One or both experiments produced no valid quality scores (feedback unavailable).");
+    console.log("--------------------------------------------------------------------------------");
+    process.exit(1);
   }
 
   const currentAvg = currentScores.reduce((a, b) => a + b, 0) / currentScores.length;

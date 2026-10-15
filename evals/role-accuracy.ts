@@ -219,7 +219,7 @@ async function buildHeldOutDataset(
  * so substrings (e.g., "webhook" -> "hook") or multi-word explanations do not misfire.
  */
 function parsePredictedRole(rawResponse: string): AllowedAIRole | null {
-  const cleaned = rawResponse.trim().toLowerCase().replace(/^['"`]+|['"`.,!?;:]+\$/g, "");
+  const cleaned = rawResponse.trim().toLowerCase().replace(/^['"`]+|['"`.,!?;:]+$/g, "");
   if (!cleaned) return null;
 
   if (isAllowedAIRole(cleaned)) {

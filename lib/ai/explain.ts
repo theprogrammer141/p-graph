@@ -40,7 +40,6 @@ const FALLBACK_EXPLANATION = "No explanation returned by model.";
 const MAX_FOLDER_FILES_IN_PROMPT = 30;
 const MAX_FOLDER_NEIGHBOURS_IN_PROMPT = 25;
 const MAX_ROLE_NEIGHBOURS_IN_PROMPT = 15;
-const UNCLASSIFIED_ROLE_LABELS = new Set(["generic", "unidentified"]);
 
 function isAllowedAIRole(value: string): value is AllowedAIRole {
   return (ALLOWED_AI_ROLES as readonly string[]).includes(value);
@@ -56,7 +55,7 @@ function formatBulletList(items: readonly string[], limit?: number): string {
  * to prevent substring false positives (e.g., "webhook" matching "hook").
  */
 function parseClassifiedRole(raw: string): AllowedAIRole {
-  const cleaned = raw.trim().toLowerCase().replace(/^['"`]+|['"`.,!?;:]+\$/g, "");
+  const cleaned = raw.trim().toLowerCase().replace(/^['"`]+|['"`.,!?;:]+$/g, "");
   if (!cleaned) return "util";
 
   if (isAllowedAIRole(cleaned)) {
@@ -390,9 +389,9 @@ export const explainFolderTraced = traceable(
     // 3. Live evaluation: check for invented paths against exact shown paths
     const shownPaths = [
       folderPath,
-      ...folderFiles.map((f) => f.path),
-      ...neighbours.incomingFiles,
-      ...neighbours.outgoingFiles,
+      ...folderFiles.slice(0, MAX_FOLDER_FILES_IN_PROMPT).map((f) => f.path),
+      ...neighbours.incomingFiles.slice(0, MAX_FOLDER_NEIGHBOURS_IN_PROMPT),
+      ...neighbours.outgoingFiles.slice(0, MAX_FOLDER_NEIGHBOURS_IN_PROMPT),
     ];
     await recordInventedPathFeedback(content, shownPaths);
 
@@ -455,9 +454,8 @@ export const classifyFileRoleTraced = traceable(
       .maybeSingle();
 
     const normalizedExisting = existingRole?.role?.trim().toLowerCase() ?? "";
-    if (normalizedExisting && !UNCLASSIFIED_ROLE_LABELS.has(normalizedExisting)) {
-      const valid = ALLOWED_AI_ROLES.find((r) => r === normalizedExisting);
-      return { role: (valid ?? existingRole!.role) as AllowedAIRole, cached: true };
+    if (isAllowedAIRole(normalizedExisting)) {
+      return { role: normalizedExisting, cached: true };
     }
 
     // 2. Cache miss: classify using model

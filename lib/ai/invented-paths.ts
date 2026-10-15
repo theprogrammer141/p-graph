@@ -109,7 +109,7 @@ function stripTokenPunctuation(raw: string): string {
   return raw
     .trim()
     .replace(/^[("'{[`<*_~]+/g, "")
-    .replace(/[),.:;!?'"}>\]`*_~]+\$/g, "")
+    .replace(/[),.:;!?'"}>\]`*_~]+$/g, "")
     .trim();
 }
 
@@ -123,7 +123,7 @@ export function normalizePath(raw: string): string {
     .replace(/\/+/g, "/")
     .replace(/^(\.\/)+/, "")
     .replace(/^\/+/, "")
-    .replace(/\/+\$/, "")
+    .replace(/\/+$/, "")
     .trim();
 
   return cleaned === "." ? "" : cleaned;

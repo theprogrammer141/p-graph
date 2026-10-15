@@ -46,7 +46,7 @@ function extractJoinedPath(relation: unknown): string | null {
  * Escapes SQL LIKE wildcard characters (`%`, `_`, `\`) and normalizes trailing slashes.
  */
 function buildFolderLikePattern(folderPath: string): string {
-  const normalized = folderPath.replace(/\/+\$/, "");
+  const normalized = folderPath.replace(/\/+$/, "");
   const escaped = normalized.replace(/([\\%_])/g, "\\$1");
   return `${escaped}/%`;
 }
@@ -112,7 +112,7 @@ async function resolveShownPathsForExplanation(
   }
 
   // Folder target: match strictly files under `${target_path}/`
-  const normalizedFolder = expl.target_path.replace(/\/+\$/, "");
+  const normalizedFolder = expl.target_path.replace(/\/+$/, "");
   const likePattern = buildFolderLikePattern(normalizedFolder);
 
   const { data: folderFiles, error: folderError } = await supabase
@@ -128,11 +128,69 @@ async function resolveShownPathsForExplanation(
   }
 
   const prefix = `${normalizedFolder}/`;
-  const childPaths = (folderFiles ?? [])
-    .map((f) => f.path)
-    .filter((p): p is string => Boolean(p) && p.startsWith(prefix));
+  const childFiles = (folderFiles ?? [])
+    .filter((f): f is { id: string; path: string } => Boolean(f?.path && f.path.startsWith(prefix)));
+  const childPaths = childFiles.map((f) => f.path);
+  const fileIdSet = new Set(childFiles.map((f) => f.id));
 
-  return Array.from(new Set([expl.target_path, ...childPaths]));
+  let incomingFiles: string[] = [];
+  let outgoingFiles: string[] = [];
+
+  if (childFiles.length > 0) {
+    const fileIds = Array.from(fileIdSet);
+    const [incomingRes, outgoingRes] = await Promise.all([
+      supabase
+        .from("edges")
+        .select("source:files!edges_source_file_id_org_id_fkey(id, path)")
+        .eq("analysis_id", expl.analysis_id)
+        .in("target_file_id", fileIds),
+      supabase
+        .from("edges")
+        .select("target:files!edges_target_file_id_org_id_fkey(id, path)")
+        .eq("analysis_id", expl.analysis_id)
+        .in("source_file_id", fileIds),
+    ]);
+
+    if (incomingRes.error) {
+      throw new Error(
+        `Failed to fetch incoming edges for folder "${expl.target_path}": ${incomingRes.error.message}`,
+      );
+    }
+    if (outgoingRes.error) {
+      throw new Error(
+        `Failed to fetch outgoing edges for folder "${expl.target_path}": ${outgoingRes.error.message}`,
+      );
+    }
+
+    incomingFiles = Array.from(
+      new Set(
+        (incomingRes.data ?? [])
+          .map((e) => e.source as { id?: string; path?: string } | null)
+          .filter((f): f is { id: string; path: string } => Boolean(f?.path && !fileIdSet.has(f.id!)))
+          .map((f) => f.path),
+      ),
+    );
+
+    outgoingFiles = Array.from(
+      new Set(
+        (outgoingRes.data ?? [])
+          .map((e) => e.target as { id?: string; path?: string } | null)
+          .filter((f): f is { id: string; path: string } => Boolean(f?.path && !fileIdSet.has(f.id!)))
+          .map((f) => f.path),
+      ),
+    );
+  }
+
+  const MAX_FOLDER_FILES_IN_PROMPT = 30;
+  const MAX_FOLDER_NEIGHBOURS_IN_PROMPT = 25;
+
+  const displayedChildren = childPaths.slice(0, MAX_FOLDER_FILES_IN_PROMPT);
+  const displayedIncoming = incomingFiles.slice(0, MAX_FOLDER_NEIGHBOURS_IN_PROMPT);
+  const displayedOutgoing = outgoingFiles.slice(0, MAX_FOLDER_NEIGHBOURS_IN_PROMPT);
+
+  return Array.from(
+    new Set([expl.target_path, ...displayedChildren, ...displayedIncoming, ...displayedOutgoing]),
+  );
 }
 
 /**
@@ -229,7 +287,7 @@ async function main(): Promise<void> {
   const sampleShownPaths = firstCleanSample ? [...firstCleanSample.shownPaths] : [...FALLBACK_SHOWN_PATHS];
 
   const madeUpPath = "src/fake/secret-auth-handler.js";
-  const splicedText = `${sampleRealText}\n\nCoordinates authentication by referencing \`\${madeUpPath}\` before processing requests.`;
+  const splicedText = `${sampleRealText}\n\nCoordinates authentication by referencing \`${madeUpPath}\` before processing requests.`;
 
   console.log(`Spliced fake filename into prose: "${madeUpPath}"`);
   const splicedResult = checkInventedPaths(splicedText, sampleShownPaths);
