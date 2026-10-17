@@ -36,6 +36,17 @@ const cache = new Map<string, { data: AnalysisGraph; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
 
 /**
+ * Invalidates any in-memory cached graph for the specified analysisId when re-analysed.
+ */
+export function invalidateAnalysisGraphCache(analysisId: string): void {
+  for (const key of cache.keys()) {
+    if (key.startsWith(`${analysisId}:`)) {
+      cache.delete(key);
+    }
+  }
+}
+
+/**
  * Loads an analysis and its complete graph facts strictly scoped to the given analysisId and orgId.
  * Never guesses or infers missing data. Returns the reconstructed files, edges, and route table.
  */
@@ -96,16 +107,24 @@ export async function loadAnalysisGraph(
         .order("id")
         .range(from, to)
     ),
-    supabase
-      .from("routes")
-      .select("id, file_id, method, path")
-      .eq("analysis_id", analysisId)
-      .eq("org_id", orgId),
-    supabase
-      .from("file_roles")
-      .select("id, file_id, role, source")
-      .eq("analysis_id", analysisId)
-      .eq("org_id", orgId),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("routes")
+        .select("id, file_id, method, path")
+        .eq("analysis_id", analysisId)
+        .eq("org_id", orgId)
+        .order("id")
+        .range(from, to)
+    ),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("file_roles")
+        .select("id, file_id, role, source")
+        .eq("analysis_id", analysisId)
+        .eq("org_id", orgId)
+        .order("id")
+        .range(from, to)
+    ),
   ]);
 
   if (filesError || edgesError || routesError || rolesError) {

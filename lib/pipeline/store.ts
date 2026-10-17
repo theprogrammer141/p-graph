@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import type { ParseResult } from "@/parser/types";
 
-const BATCH_SIZE = 250;
+const BATCH_SIZE = 1000;
 
 /**
  * Stores parse results (files, edges, routes, and file roles) into Supabase for a given analysis.
@@ -15,6 +15,12 @@ export async function storeAnalysisData(
 ): Promise<{ fileCount: number; edgeCount: number; routeCount: number; roleCount: number }> {
   // If re-running an analysis, clean up previous data. A failed delete must stop
   // here: inserting on top of leftover rows would mix two runs into one graph.
+  // Detach explanations first so on-delete cascade doesn't drop explanations for unchanged files.
+  await supabase
+    .from("explanations")
+    .update({ file_id: null })
+    .eq("analysis_id", analysisId);
+
   const { error: edgesDeleteError } = await supabase.from("edges").delete().eq("analysis_id", analysisId);
   if (edgesDeleteError) throw new Error(`Failed to clear previous edges: ${edgesDeleteError.message}`);
   const { error: routesDeleteError } = await supabase.from("routes").delete().eq("analysis_id", analysisId);
@@ -48,6 +54,27 @@ export async function storeAnalysisData(
     if (data) {
       for (const row of data) {
         fileIdMap.set(row.path, row.id);
+      }
+    }
+  }
+
+  // Relink explanations to new file rows for any explanations that actually exist for this analysis.
+  // Avoid N+1 queries across the entire repository.
+  const { data: existingExplanations } = await supabase
+    .from("explanations")
+    .select("id, target_path")
+    .eq("analysis_id", analysisId);
+
+  if (existingExplanations && existingExplanations.length > 0) {
+    for (const exp of existingExplanations) {
+      if (exp.target_path) {
+        const newFileId = fileIdMap.get(exp.target_path);
+        if (newFileId) {
+          await supabase
+            .from("explanations")
+            .update({ file_id: newFileId })
+            .eq("id", exp.id);
+        }
       }
     }
   }

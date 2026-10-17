@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { CategorySummary } from "@/lib/file-categories";
 import { countTaxonomyCategories } from "@/lib/taxonomy";
 import type { Edge, FileNode, Coverage } from "@/parser/types";
@@ -11,6 +12,7 @@ import {
   buildRepoSummary,
 } from "@/lib/graph/detail";
 import { buildInsights } from "@/lib/graph/maths";
+import { reanalyseRepoAction } from "@/app/actions/analysis";
 import { GraphCanvas } from "./graph-canvas";
 import { DetailPane, type RouteItem } from "./detail-pane";
 import { CoverageBanner } from "./coverage-banner";
@@ -47,12 +49,25 @@ export function WorkspaceShell({
   edgeCount,
   coverage,
 }: WorkspaceShellProps) {
+  const router = useRouter();
+  const [isReanalysing, setIsReanalysing] = useState(false);
   const [selection, setSelection] = useState<SelectionTarget>(null);
   const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"structure" | "explanation">("structure");
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [openCount, setOpenCount] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const handleReanalyse = async () => {
+    if (!analysisId || isReanalysing) return;
+    setIsReanalysing(true);
+    try {
+      await reanalyseRepoAction(analysisId);
+      router.refresh();
+    } catch {
+      router.refresh();
+    }
+  };
 
   // In-memory cache for explanations so moving away and returning is instant
   const [cachedExplanations, setCachedExplanations] = useState<
@@ -224,6 +239,17 @@ export function WorkspaceShell({
                 <span className="tabular-nums">{edgeCount}</span> edges
               </div>
             )}
+            {analysisId && (
+              <button
+                type="button"
+                onClick={handleReanalyse}
+                disabled={isReanalysing}
+                className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors"
+                title="Re-analyse this repository"
+              >
+                {isReanalysing ? "Re-analysing..." : "Re-analyse"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -271,6 +297,8 @@ export function WorkspaceShell({
         onHover={handleHover}
         onSaveExplanation={handleSaveExplanation}
         onRoleAssigned={handleRoleAssigned}
+        onReanalyse={handleReanalyse}
+        isReanalysing={isReanalysing}
       />
     </div>
   );

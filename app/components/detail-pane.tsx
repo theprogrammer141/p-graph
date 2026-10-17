@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { FileDetail, FolderDetail, RepoSummary } from "@/lib/graph/detail";
 import type { SelectionTarget } from "./workspace-shell";
 import type { Edge, FileNode } from "@/parser/types";
@@ -51,6 +52,8 @@ interface DetailPaneProps {
   onHover: (target: string | null) => void;
   onSaveExplanation: (key: string, data: CachedExplanation) => void;
   onRoleAssigned?: (filePath: string, role: string) => void;
+  onReanalyse?: () => void;
+  isReanalysing?: boolean;
 }
 
 /** Renders details and insights for the current repository, folder, or file selection. */
@@ -74,6 +77,8 @@ export function DetailPane({
   onHover,
   onSaveExplanation,
   onRoleAssigned,
+  onReanalyse,
+  isReanalysing,
 }: DetailPaneProps) {
   const [paneMode, setPaneMode] = useState<"overview" | "ask">("overview");
 
@@ -176,20 +181,22 @@ export function DetailPane({
               />
             ) : (
               <StructureTab
-            analysisId={analysisId}
-            selection={selection}
-            repoSummary={repoSummary}
-            fileDetail={fileDetail}
-            folderDetail={folderDetail}
-            edges={edges}
-            routes={routes}
-            isFileHovered={isFileHovered}
-            onSelectFile={onSelectFile}
-            onHover={onHover}
-            onRoleAssigned={onRoleAssigned}
-            onTabChange={onTabChange}
-          />
-        )}
+                analysisId={analysisId}
+                selection={selection}
+                repoSummary={repoSummary}
+                fileDetail={fileDetail}
+                folderDetail={folderDetail}
+                edges={edges}
+                routes={routes}
+                isFileHovered={isFileHovered}
+                onSelectFile={onSelectFile}
+                onHover={onHover}
+                onRoleAssigned={onRoleAssigned}
+                onTabChange={onTabChange}
+                onReanalyse={onReanalyse}
+                isReanalysing={isReanalysing}
+              />
+            )}
       </div>
 
           {/* Insights Panel - starts collapsed, never as first thing you see */}
@@ -339,14 +346,16 @@ function ExplanationTab({
     }
   };
 
+  const router = useRouter();
+
   const handleReanalyse = async () => {
     if (!analysisId) return;
     setReanalysing(true);
     try {
       await reanalyseRepoAction(analysisId);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to restart analysis.");
-      setReanalysing(false);
+      router.refresh();
+    } catch {
+      router.refresh();
     }
   };
 
@@ -601,6 +610,8 @@ interface StructureTabProps {
   onHover: (target: string | null) => void;
   onRoleAssigned?: (filePath: string, role: string) => void;
   onTabChange?: (tab: "structure" | "explanation") => void;
+  onReanalyse?: () => void;
+  isReanalysing?: boolean;
 }
 
 /** Selects the repository, file, or folder detail view for the current selection. */
@@ -617,6 +628,8 @@ function StructureTab({
   onHover,
   onRoleAssigned,
   onTabChange,
+  onReanalyse,
+  isReanalysing,
 }: StructureTabProps) {
   if (selection === null) {
     return (
@@ -626,6 +639,8 @@ function StructureTab({
         isFileHovered={isFileHovered}
         onSelectFile={onSelectFile}
         onHover={onHover}
+        onReanalyse={onReanalyse}
+        isReanalysing={isReanalysing}
       />
     );
   }
@@ -696,19 +711,36 @@ function RepoSummaryView({
   isFileHovered,
   onSelectFile,
   onHover,
+  onReanalyse,
+  isReanalysing,
 }: {
   summary: RepoSummary;
   routes: readonly RouteItem[];
   isFileHovered: (path: string) => boolean;
   onSelectFile: (path: string) => void;
   onHover: (target: string | null) => void;
+  onReanalyse?: () => void;
+  isReanalysing?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 p-3">
       {/* Repository identity & framework */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
-        <div className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-          {summary.name}
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+            {summary.name}
+          </div>
+          {onReanalyse && (
+            <button
+              type="button"
+              onClick={onReanalyse}
+              disabled={isReanalysing}
+              className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors shrink-0"
+              title="Re-analyse this repository"
+            >
+              {isReanalysing ? "Re-analysing..." : "Re-analyse"}
+            </button>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
           <span>Framework:</span>

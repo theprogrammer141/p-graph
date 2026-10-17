@@ -111,14 +111,22 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
         .order("id")
         .range(from, to),
     ),
-    supabase
-      .from("routes")
-      .select("id, file_id, method, path")
-      .eq("analysis_id", id),
-    supabase
-      .from("file_roles")
-      .select("id, file_id, role, source")
-      .eq("analysis_id", id),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("routes")
+        .select("id, file_id, method, path")
+        .eq("analysis_id", id)
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("file_roles")
+        .select("id, file_id, role, source")
+        .eq("analysis_id", id)
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
   if (filesError || edgesError || routesError || rolesError) {

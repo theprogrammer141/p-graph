@@ -7,6 +7,7 @@ import {
   parseRepoUrl,
 } from "./github";
 import { storeAnalysisData } from "./store";
+import { invalidateAnalysisGraphCache } from "@/lib/agent/loader";
 
 export type PipelineStage = "fetch" | "select" | "parse" | "store" | "complete" | "failed";
 
@@ -177,6 +178,8 @@ export async function runAnalysis({
       if (completionError) {
         throw new Error(`Failed to complete analysis: ${completionError.message}`);
       }
+
+      invalidateAnalysisGraphCache(analysisId);
 
       return {
         analysisId,
