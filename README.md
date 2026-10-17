@@ -14,10 +14,12 @@ A local codebase intelligence tool that reads public TypeScript and JavaScript r
 
 Modern software teams increasingly inherit and ship code generated across dozens of AI agent sessions that no single person has read line-by-line. While the code works, it accumulates hidden structural complexity: deep re-export chains, heavily congested utilities, and dead code modules.
 
-**p-graph** solves this by generating an exact, deterministic architectural map of any public GitHub repository. 
+**p-graph** solves this by generating an exact, deterministic architectural map of any public GitHub repository.
 
 ### The Core Principle: Parsing First, AI Second
+
 A dependency graph that is 90% accurate is worse than no graph at all, because developers cannot tell which 10% was hallucinated. In **p-graph**:
+
 - **Every box and line comes from real syntax parsing.** The system parses real imports, dynamic imports, re-exports, and `require()` calls using `ts-morph`.
 - **Zero invented relationships.** The AI is strictly barred from guessing connections, traversing graphs on intuition, or hallucinating files.
 - **Arithmetic over data.** Blast radius calculations, fan-in/fan-out metrics, and dependency paths are computed as pure mathematical operations over the parsed edge list.
@@ -28,26 +30,32 @@ A dependency graph that is 90% accurate is worse than no graph at all, because d
 ## Technologies
 
 ### Application & UI
+
 - **[Next.js 16](https://nextjs.org/)** (App Router) with React 19 and strict TypeScript.
 - **[Tailwind CSS v4](https://tailwindcss.com/)** with custom semantic palettes (accent blue, incoming green, outgoing amber) and full dark/light theme persistence.
 - **[Lucide React](https://lucide.dev/)** for clean developer tooling icons.
 
 ### Canvas & Graph Visualization
+
 - **[@xyflow/react (React Flow)](https://reactflow.dev/)** for the interactive node-based canvas, directory grouping, zoom/pan controls, and mini-map.
 - **[@dagrejs/dagre](https://github.com/dagrejs/dagre)** for deterministic, hierarchical directed graph layout computation.
 
 ### Code Parsing & Framework Adapters
+
 - **[ts-morph](https://ts-morph.com/)** for TypeScript and JavaScript AST parsing, module resolution, and path alias mapping (`tsconfig.json`).
 - **Pluggable Framework Adapters** for Next.js (App & Pages Router), NestJS, Express, and React to classify files into architectural roles and extract HTTP route tables.
 
 ### Authentication & Multi-Tenancy
+
 - **[Clerk](https://clerk.com/)** for developer authentication, organization memberships, and role-based session claims.
 
 ### Database, Realtime & Security
+
 - **[Supabase (PostgreSQL)](https://supabase.com/)** with Row-Level Security (RLS) enabled on all tables.
 - **Supabase Realtime** broadcast channels for streaming live pipeline status updates during parsing.
 
 ### AI, Agents & Observability
+
 - **[OpenAI SDK](https://github.com/openai/openai-node)** configured with OpenRouter / pinned model endpoints (`nvidia/nemotron-3-ultra-550b-a55b:free`).
 - **[LangSmith](https://smith.langchain.com/)** for full tracing, latency tracking, token usage, and cache-hit auditing.
 - **Managed Deep Agents Architecture** powering an autonomous repository QA agent with HMAC-signed scoped credentials and deterministic graph query tools.
@@ -105,6 +113,7 @@ Public GitHub URL
 ## How to Run the Project
 
 ### Prerequisites
+
 - **Node.js**: v20.6.0 or higher (Node 22 recommended)
 - **npm**: v10+
 - **Git**: Installed locally
@@ -135,25 +144,25 @@ cp .env.example .env.local
 
 Populate the required environment variables:
 
-| Variable | Description |
-| :--- | :--- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk public key for client-side authentication. |
-| `CLERK_SECRET_KEY` | Clerk secret key for backend token verification. |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | Set to `/sign-in`. |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Set to `/sign-up`. |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | Set to `/`. |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | Set to `/`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (e.g. `https://your-project.supabase.co`). |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key. |
-| `SUPABASE_SECRET_KEY` | Supabase service role key (for server-side pipeline writes & RLS bypass). |
-| `OPENROUTER_API_KEY` | API key from OpenRouter (used for explanation models). |
-| `OPENROUTER_BASE_URL` | Optional, defaults to `https://openrouter.ai/api/v1`. |
-| `LANGSMITH_TRACING` | Set to `true` to enable LangSmith tracing. |
-| `LANGSMITH_ENDPOINT` | LangSmith API endpoint (e.g. `https://api.smith.langchain.com` or APAC endpoint). |
-| `LANGSMITH_PROJECT` | LangSmith project name (e.g. `p-graph`). |
-| `LANGSMITH_API_KEY` | LangSmith API key for trace ingestion. |
-| `AGENT_URL` | URL of the local Ask agent service (defaults to `http://127.0.0.1:2024`). |
-| `AGENT_SIGNING_SECRET` | Optional HMAC secret to sign agent credentials (defaults to Clerk or Supabase key). |
+| Variable                                          | Description                                                                         |
+| :------------------------------------------------ | :---------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`               | Clerk public key for client-side authentication.                                    |
+| `CLERK_SECRET_KEY`                                | Clerk secret key for backend token verification.                                    |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`                   | Set to `/sign-in`.                                                                  |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`                   | Set to `/sign-up`.                                                                  |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | Set to `/`.                                                                         |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | Set to `/`.                                                                         |
+| `NEXT_PUBLIC_SUPABASE_URL`                        | Supabase project URL (e.g. `https://your-project.supabase.co`).                     |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`            | Supabase anon/publishable key.                                                      |
+| `SUPABASE_SECRET_KEY`                             | Supabase service role key (for server-side pipeline writes & RLS bypass).           |
+| `OPENROUTER_API_KEY`                              | API key from OpenRouter (used for explanation models).                              |
+| `OPENROUTER_BASE_URL`                             | Optional, defaults to `https://openrouter.ai/api/v1`.                               |
+| `LANGSMITH_TRACING`                               | Set to `true` to enable LangSmith tracing.                                          |
+| `LANGSMITH_ENDPOINT`                              | LangSmith API endpoint (e.g. `https://api.smith.langchain.com` or APAC endpoint).   |
+| `LANGSMITH_PROJECT`                               | LangSmith project name (e.g. `p-graph`).                                            |
+| `LANGSMITH_API_KEY`                               | LangSmith API key for trace ingestion.                                              |
+| `AGENT_URL`                                       | URL of the local Ask agent service (defaults to `http://127.0.0.1:2024`).           |
+| `AGENT_SIGNING_SECRET`                            | Optional HMAC secret to sign agent credentials (defaults to Clerk or Supabase key). |
 
 ---
 
@@ -162,11 +171,13 @@ Populate the required environment variables:
 Apply the SQL migrations located in `supabase/migrations/` to your Supabase project:
 
 Using the Supabase CLI:
+
 ```bash
 supabase db push
 ```
 
 Alternatively, run each migration file in order via the Supabase SQL Editor:
+
 1. `supabase/migrations/20261003111653_init.sql`
 2. `supabase/migrations/20261003111918_pin_rls_trigger_search_path.sql`
 3. `supabase/migrations/20261007120000_pipeline_stages_and_realtime.sql`
