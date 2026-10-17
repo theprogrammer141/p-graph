@@ -166,6 +166,32 @@ export function computeRoleCacheKey(model: string, sha256: string): string {
 }
 
 /**
+ * Safely extracts assistant message content from an AI completion,
+ * throwing descriptive errors on upstream/provider failures.
+ */
+function extractCompletionContent(completion: unknown): string {
+  const res = completion as {
+    error?: { message?: string; code?: number };
+    choices?: Array<{
+      message?: { content?: string | null };
+    }>;
+  };
+
+  if (res?.error) {
+    throw new Error(
+      `AI provider error (${res.error.code ?? "unknown"}): ${res.error.message ?? "upstream error"}`,
+    );
+  }
+
+  const choice = res?.choices?.[0];
+  if (!choice) {
+    throw new Error("AI provider returned no completion choices.");
+  }
+
+  return choice.message?.content?.trim() ?? "";
+}
+
+/**
  * Explains a single source file in the context of its real neighbours.
  * The cache read happens inside the traced call so cache hits appear in LangSmith with 0 model tokens.
  */
@@ -251,7 +277,7 @@ export const explainFileTraced = traceable(
       max_tokens: 500,
     });
 
-    const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
+    const rawContent = extractCompletionContent(completion);
     const hasValidContent = rawContent.length > 0;
     const content = hasValidContent ? rawContent : FALLBACK_EXPLANATION;
 
@@ -382,7 +408,7 @@ export const explainFolderTraced = traceable(
       max_tokens: 500,
     });
 
-    const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
+    const rawContent = extractCompletionContent(completion);
     const hasValidContent = rawContent.length > 0;
     const content = hasValidContent ? rawContent : FALLBACK_EXPLANATION;
 
@@ -497,7 +523,7 @@ export const classifyFileRoleTraced = traceable(
       max_tokens: 200,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
+    const raw = extractCompletionContent(completion);
     const matched = parseClassifiedRole(raw);
 
     // 3. Upsert into file_roles table with source = 'ai'
