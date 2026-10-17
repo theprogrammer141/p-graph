@@ -3,7 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { createClerkSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase";
+import { createClerkSupabaseClient, createAdminSupabaseClient, ensureOrganization } from "@/lib/supabase";
 import { parseRepoUrl } from "@/lib/pipeline/github";
 import { runAnalysis } from "@/lib/pipeline/run";
 
@@ -82,6 +82,8 @@ export async function createOrReuseAnalysis({
   }
 
   // 2. Register project and create initial analysis row
+  await ensureOrganization(orgId);
+
   const { data: proj, error: projError } = await supabase
     .from("projects")
     .upsert(

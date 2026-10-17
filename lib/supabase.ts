@@ -47,3 +47,18 @@ export function createAdminSupabaseClient() {
   });
 }
 
+/**
+ * Ensures an organization row exists in public.organizations so child tables
+ * with foreign keys to organizations (projects, analyses, files, etc.) can insert cleanly.
+ */
+export async function ensureOrganization(orgId: string): Promise<void> {
+  const admin = createAdminSupabaseClient();
+  const { error } = await admin
+    .from("organizations")
+    .upsert({ id: orgId }, { onConflict: "id" });
+
+  if (error) {
+    throw new Error(`Failed to ensure organization: ${error.message}`);
+  }
+}
+
