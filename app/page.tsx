@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { AnalysisForm } from "@/app/components/analysis-form";
 import { DashboardTable, type AnalysisItem } from "@/app/components/dashboard-table";
+import { LandingPage } from "@/app/components/landing/landing-page";
+import { parseRepoUrl } from "@/lib/pipeline/github";
 
 // The dashboard: analyses for the organization in the current session token.
 //
@@ -12,10 +14,28 @@ import { DashboardTable, type AnalysisItem } from "@/app/components/dashboard-ta
 
 /**
  * Loads up to 100 recent analyses visible through organization RLS for the dashboard.
- * Shows an organization prompt or query error when the list cannot be displayed.
+ * Shows the marketing landing page when signed out, an organization prompt when
+ * an org is required, or query error when the list cannot be displayed.
  */
-export default async function Home() {
-  const { orgId } = await auth();
+export default async function Home(props: {
+  searchParams: Promise<{ repoUrl?: string }>;
+}) {
+  const { userId, orgId } = await auth();
+  const searchParams = await props.searchParams;
+
+  let validatedRepoUrl: string | undefined;
+  if (searchParams.repoUrl) {
+    try {
+      validatedRepoUrl = parseRepoUrl(searchParams.repoUrl).canonicalUrl;
+    } catch {
+      validatedRepoUrl = undefined;
+    }
+  }
+
+  // Signed out: render public marketing landing page
+  if (!userId) {
+    return <LandingPage initialRepoUrl={validatedRepoUrl} />;
+  }
 
   // A personal account has no org claim; every policy matches nothing for it.
   // Say so rather than showing an empty state that implies "no analyses yet".
@@ -36,6 +56,11 @@ export default async function Home() {
             Analyses belong to an organization and are isolated via database security policies.
             Select or create an organization in the switcher above to open its workspace.
           </p>
+          {validatedRepoUrl && (
+            <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-3 bg-zinc-50 dark:bg-zinc-900 p-2 border border-zinc-200 dark:border-zinc-800 rounded-xs">
+              Repository ready to analyse: {validatedRepoUrl}
+            </p>
+          )}
           <div className="font-mono text-[11px] text-zinc-500 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 rounded-xs inline-block">
             RLS: claim &apos;org_id&apos; absent
           </div>
@@ -69,7 +94,7 @@ export default async function Home() {
         </span>
       </div>
 
-      <AnalysisForm />
+      <AnalysisForm initialRepoUrl={validatedRepoUrl} />
 
       <div className="flex items-center justify-between mb-3 pt-2 border-t border-zinc-200/60 dark:border-zinc-800/60">
         <div className="flex items-center gap-2.5">
