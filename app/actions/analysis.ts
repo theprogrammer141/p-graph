@@ -44,6 +44,100 @@ export interface ActionState {
 }
 
 /**
+ * Finds an existing analysis or registers the project and creates an initial row,
+ * scheduling the pipeline run in the background. Returns the analysis ID.
+ */
+export async function createOrReuseAnalysis({
+  canonicalUrl,
+  owner,
+  name,
+  orgId,
+}: {
+  canonicalUrl: string;
+  owner: string;
+  name: string;
+  orgId: string;
+}): Promise<string> {
+  const supabase = await createClerkSupabaseClient();
+
+  // 1. One analysis per repository: check if repo was already analysed
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("repo_url", canonicalUrl)
+    .maybeSingle();
+
+  if (project) {
+    const { data: existing } = await supabase
+      .from("analyses")
+      .select("id, status, created_at, stage")
+      .eq("project_id", project.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing && existing.status !== "failed" && !(await failStaleAnalysis(supabase, existing))) {
+      return existing.id;
+    }
+  }
+
+  // 2. Register project and create initial analysis row
+  const { data: proj, error: projError } = await supabase
+    .from("projects")
+    .upsert(
+      {
+        org_id: orgId,
+        repo_url: canonicalUrl,
+        owner,
+        name,
+      },
+      { onConflict: "org_id,repo_url" },
+    )
+    .select("id")
+    .single();
+
+  if (projError || !proj) {
+    throw new Error(`Failed to register project: ${projError?.message ?? "unknown error"}`);
+  }
+
+  const { data: analysis, error: analysisError } = await supabase
+    .from("analyses")
+    .insert({
+      org_id: orgId,
+      project_id: proj.id,
+      status: "parsing",
+      stage: "fetch",
+      stage_message: "Fetching repository archive...",
+    })
+    .select("id")
+    .single();
+
+  if (analysisError || !analysis) {
+    throw new Error(`Failed to create analysis: ${analysisError?.message ?? "unknown error"}`);
+  }
+
+  const analysisId = analysis.id;
+
+  // 3. Schedule the pipeline run in the background
+  after(async () => {
+    const admin = createAdminSupabaseClient();
+    try {
+      await runAnalysis({
+        supabase: admin,
+        orgId,
+        analysisId,
+        repoUrl: canonicalUrl,
+        forceRerun: true,
+      });
+    } catch (err) {
+      console.error("Pipeline run encountered error:", err);
+    }
+  });
+
+  return analysisId;
+}
+
+/**
  * Validates a repository submission, reuses an existing analysis when possible,
  * or schedules a background run and redirects to its progress page.
  * Returns a form error when validation or registration fails.
@@ -75,83 +169,73 @@ export async function submitRepoAction(
     return { error: err instanceof Error ? err.message : String(err) };
   }
 
-  const supabase = await createClerkSupabaseClient();
-
-  // 1. One analysis per repository: check if repo was already analysed
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("repo_url", canonicalUrl)
-    .maybeSingle();
-
-  if (project) {
-    const { data: existing } = await supabase
-      .from("analyses")
-      .select("id, status, created_at, stage")
-      .eq("project_id", project.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing && existing.status !== "failed" && !(await failStaleAnalysis(supabase, existing))) {
-      redirect(`/analysis/${existing.id}`);
+  try {
+    const analysisId = await createOrReuseAnalysis({
+      canonicalUrl,
+      owner,
+      name,
+      orgId,
+    });
+    redirect(`/analysis/${analysisId}`);
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
     }
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Handles hero form submissions from the landing page.
+ * If signed out, redirects to sign-in with a return URL that triggers analysis creation.
+ * If signed in, starts analysis immediately and redirects to /analysis/[id].
+ */
+export async function submitHeroAction(
+  _prevState: ActionState | null,
+  formData: FormData,
+): Promise<ActionState | never> {
+  const rawUrl = formData.get("repoUrl");
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return { error: "Please enter a GitHub repository URL." };
   }
 
-  // 2. Register project and create initial analysis row
-  const { data: proj, error: projError } = await supabase
-    .from("projects")
-    .upsert(
-      {
-        org_id: orgId,
-        repo_url: canonicalUrl,
-        owner,
-        name,
-      },
-      { onConflict: "org_id,repo_url" },
-    )
-    .select("id")
-    .single();
+  let owner: string;
+  let name: string;
+  let canonicalUrl: string;
 
-  if (projError || !proj) {
-    return { error: `Failed to register project: ${projError?.message ?? "unknown error"}` };
+  try {
+    const parsed = parseRepoUrl(rawUrl);
+    owner = parsed.owner;
+    name = parsed.name;
+    canonicalUrl = parsed.canonicalUrl;
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) };
   }
 
-  const { data: analysis, error: analysisError } = await supabase
-    .from("analyses")
-    .insert({
-      org_id: orgId,
-      project_id: proj.id,
-      status: "parsing",
-      stage: "fetch",
-      stage_message: "Fetching repository archive...",
-    })
-    .select("id")
-    .single();
-
-  if (analysisError || !analysis) {
-    return { error: `Failed to create analysis: ${analysisError?.message ?? "unknown error"}` };
+  const { userId, orgId } = await auth();
+  if (!userId) {
+    const returnUrl = `/?repoUrl=${encodeURIComponent(canonicalUrl)}`;
+    redirect(`/sign-in?redirect_url=${encodeURIComponent(returnUrl)}`);
   }
 
-  const analysisId = analysis.id;
+  if (!orgId) {
+    redirect(`/?repoUrl=${encodeURIComponent(canonicalUrl)}`);
+  }
 
-  // 3. Schedule the pipeline run in the background
-  after(async () => {
-    const admin = createAdminSupabaseClient();
-    try {
-      await runAnalysis({
-        supabase: admin,
-        orgId,
-        analysisId,
-        repoUrl: canonicalUrl,
-        forceRerun: true,
-      });
-    } catch (err) {
-      console.error("Pipeline run encountered error:", err);
+  try {
+    const analysisId = await createOrReuseAnalysis({
+      canonicalUrl,
+      owner,
+      name,
+      orgId,
+    });
+    redirect(`/analysis/${analysisId}`);
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
     }
-  });
-
-  redirect(`/analysis/${analysisId}`);
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**
