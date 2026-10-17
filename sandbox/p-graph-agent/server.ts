@@ -164,3 +164,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`p-graph-agent service listening on http://localhost:${PORT}`);
 });
+
+export default server;
+

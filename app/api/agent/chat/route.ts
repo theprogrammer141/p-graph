@@ -230,6 +230,7 @@ export async function POST(req: Request) {
     });
 
     const agentUrl = process.env.AGENT_URL || "http://127.0.0.1:2024";
+    const agentBase = agentUrl.endsWith("/") ? agentUrl : `${agentUrl}/`;
 
     // Format prompt incorporating selected UI context if any
     let contextualMessage = userMessage;
@@ -243,7 +244,8 @@ export async function POST(req: Request) {
     let activeThreadId = threadId;
     if (!activeThreadId) {
       try {
-        const threadRes = await fetch(`${agentUrl}/threads`, {
+        const threadEndpoint = new URL("threads", agentBase);
+        const threadRes = await fetch(threadEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -264,8 +266,8 @@ export async function POST(req: Request) {
     let agentResponse: globalThis.Response;
     try {
       const targetEndpoint = activeThreadId
-        ? `${agentUrl}/threads/${encodeURIComponent(activeThreadId)}/runs/stream`
-        : `${agentUrl}/runs/stream`;
+        ? new URL(`threads/${encodeURIComponent(activeThreadId)}/runs/stream`, agentBase)
+        : new URL("runs/stream", agentBase);
 
       agentResponse = await fetch(targetEndpoint, {
         method: "POST",

@@ -16,8 +16,9 @@ export async function callPGraphApi<T>(
   const cfg = (runnableConfig as PGraphApiConfig | undefined)?.configurable;
   const baseUrl = cfg?.apiUrl || process.env.PGRAPH_API_URL || "http://localhost:3000";
   const token = cfg?.credential || process.env.PGRAPH_CREDENTIAL;
-
-  const url = new URL(endpoint, baseUrl);
+  const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint;
+  const url = new URL(cleanEndpoint, base);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {

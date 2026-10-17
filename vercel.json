@@ -1,0 +1,38 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "nextjs",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "p-graph-agent",
+          "format": "url",
+          "env": "AGENT_URL"
+        }
+      ]
+    },
+    "p-graph-agent": {
+      "root": "sandbox/p-graph-agent",
+      "runtime": "node",
+      "entrypoint": "server.ts",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "app",
+          "format": "url",
+          "env": "PGRAPH_API_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
+  ]
+}
