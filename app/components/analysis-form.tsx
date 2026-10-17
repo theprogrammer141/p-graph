@@ -4,7 +4,7 @@ import React, { useActionState } from "react";
 import { submitRepoAction, type ActionState } from "@/app/actions/analysis";
 
 /** Submits a GitHub repository URL and displays pending state or server action errors. */
-export function AnalysisForm() {
+export function AnalysisForm({ initialRepoUrl = "" }: { initialRepoUrl?: string }) {
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     submitRepoAction,
     null,
@@ -23,6 +23,7 @@ export function AnalysisForm() {
             type="text"
             required
             disabled={isPending}
+            defaultValue={initialRepoUrl}
             placeholder="https://github.com/owner/repository"
             className="w-full px-3 py-1.5 font-mono text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-hidden focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 transition-colors"
           />

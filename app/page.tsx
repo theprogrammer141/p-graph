@@ -1,10 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { AnalysisForm } from "@/app/components/analysis-form";
 import { DashboardTable, type AnalysisItem } from "@/app/components/dashboard-table";
 import { LandingPage } from "@/app/components/landing/landing-page";
-import { createOrReuseAnalysis } from "@/app/actions/analysis";
 import { parseRepoUrl } from "@/lib/pipeline/github";
 
 // The dashboard: analyses for the organization in the current session token.
@@ -25,28 +23,18 @@ export default async function Home(props: {
   const { userId, orgId } = await auth();
   const searchParams = await props.searchParams;
 
-  // Signed out: render public marketing landing page
-  if (!userId) {
-    return <LandingPage initialRepoUrl={searchParams.repoUrl} />;
+  let validatedRepoUrl: string | undefined;
+  if (searchParams.repoUrl) {
+    try {
+      validatedRepoUrl = parseRepoUrl(searchParams.repoUrl).canonicalUrl;
+    } catch {
+      validatedRepoUrl = undefined;
+    }
   }
 
-  // Arrived via hero form sign-in flow with an active organization:
-  if (searchParams.repoUrl && orgId) {
-    try {
-      const { canonicalUrl, owner, name } = parseRepoUrl(searchParams.repoUrl);
-      const analysisId = await createOrReuseAnalysis({
-        canonicalUrl,
-        owner,
-        name,
-        orgId,
-      });
-      redirect(`/analysis/${analysisId}`);
-    } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) {
-        throw err;
-      }
-      console.error("Auto-start analysis from query param failed:", err);
-    }
+  // Signed out: render public marketing landing page
+  if (!userId) {
+    return <LandingPage initialRepoUrl={validatedRepoUrl} />;
   }
 
   // A personal account has no org claim; every policy matches nothing for it.
@@ -68,9 +56,9 @@ export default async function Home(props: {
             Analyses belong to an organization and are isolated via database security policies.
             Select or create an organization in the switcher above to open its workspace.
           </p>
-          {searchParams.repoUrl && (
+          {validatedRepoUrl && (
             <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-3 bg-zinc-50 dark:bg-zinc-900 p-2 border border-zinc-200 dark:border-zinc-800 rounded-xs">
-              Repository ready to analyse: {searchParams.repoUrl}
+              Repository ready to analyse: {validatedRepoUrl}
             </p>
           )}
           <div className="font-mono text-[11px] text-zinc-500 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 rounded-xs inline-block">
@@ -106,7 +94,7 @@ export default async function Home(props: {
         </span>
       </div>
 
-      <AnalysisForm />
+      <AnalysisForm initialRepoUrl={validatedRepoUrl} />
 
       <div className="flex items-center justify-between mb-3 pt-2 border-t border-zinc-200/60 dark:border-zinc-800/60">
         <div className="flex items-center gap-2.5">
