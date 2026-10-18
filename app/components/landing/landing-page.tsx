@@ -1,5 +1,6 @@
 import React from "react";
 import { HeroForm } from "./hero-form";
+import { Logo } from "../logo";
 import {
   HeroIllustration,
   WhatItDoesIllustration,
@@ -22,9 +23,15 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
             <div className="lg:col-span-7">
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100" />
+                <span className="inline-flex items-center gap-1">
+                  <Logo className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
+                  <span className="font-jetbrains text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                    -graph
+                  </span>
+                </span>
+                <span className="text-zinc-300 dark:text-zinc-700 text-xs">/</span>
                 <span className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">
-                  p-graph / codebase visualization
+                  codebase visualization
                 </span>
               </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-5">
@@ -204,8 +211,12 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
       <footer className="w-full border-t border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50">
         <div className="max-w-285 mx-auto px-6 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs font-mono text-zinc-500 dark:text-zinc-400">
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-xs bg-zinc-900 dark:bg-zinc-100" />
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">p-graph</span>
+            <span className="inline-flex items-center gap-1">
+              <Logo className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
+              <span className="font-jetbrains text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                -graph
+              </span>
+            </span>
             <span className="text-zinc-400 dark:text-zinc-600">/</span>
             <span>Deterministic codebase visualization</span>
           </div>
