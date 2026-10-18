@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { mintAgentCredential } from "@/lib/agent/credential";
-import { agentErrorResponse, handleOptions } from "@/lib/agent/http";
+import { agentErrorResponse, handleOptions, CORS_HEADERS } from "@/lib/agent/http";
+import { loadAnalysisGraph } from "@/lib/agent/loader";
+import { runAgentStream, type ChatHistoryItem } from "@/lib/agent/runner";
 
 export async function OPTIONS() {
   return handleOptions();
@@ -193,12 +195,14 @@ export async function POST(req: Request) {
       message?: string;
       threadId?: string;
       selected?: { kind: string; path?: string; dir?: string } | null;
+      history?: ChatHistoryItem[];
     };
 
     const analysisId = body?.analysisId?.trim();
     const userMessage = body?.message?.trim();
     const threadId = body?.threadId?.trim();
     const selected = body?.selected;
+    const history = body?.history;
 
     if (!analysisId) {
       return agentErrorResponse(new Error("Missing parameter 'analysisId'."), 400);
@@ -222,112 +226,108 @@ export async function POST(req: Request) {
       );
     }
 
-    // Mint short-lived credential containing analysisId and orgId
-    const credential = mintAgentCredential({
-      analysisId: analysis.id,
-      orgId: analysis.org_id,
-      expiresInSeconds: 600,
-    });
+    const agentUrl = process.env.AGENT_URL;
 
-    const agentUrl = process.env.AGENT_URL || "http://127.0.0.1:2024";
-    const agentBase = agentUrl.endsWith("/") ? agentUrl : `${agentUrl}/`;
+    // If an external agent service is configured and reachable, attempt forwarding to it
+    if (agentUrl && agentUrl !== "http://127.0.0.1:2024") {
+      const agentBase = agentUrl.endsWith("/") ? agentUrl : `${agentUrl}/`;
+      const credential = mintAgentCredential({
+        analysisId: analysis.id,
+        orgId: analysis.org_id,
+        expiresInSeconds: 600,
+      });
 
-    // Format prompt incorporating selected UI context if any
-    let contextualMessage = userMessage;
-    if (selected?.path) {
-      contextualMessage = `[Context: currently selected file is '${selected.path}']\n${userMessage}`;
-    } else if (selected?.dir) {
-      contextualMessage = `[Context: currently selected directory is '${selected.dir}']\n${userMessage}`;
-    }
+      let contextualMessage = userMessage;
+      if (selected?.path) {
+        contextualMessage = `[Context: currently selected file is '${selected.path}']\n${userMessage}`;
+      } else if (selected?.dir) {
+        contextualMessage = `[Context: currently selected directory is '${selected.dir}']\n${userMessage}`;
+      }
 
-    // Ensure we have a thread on the agent server to persist conversation turns
-    let activeThreadId = threadId;
-    if (!activeThreadId) {
+      let activeThreadId = threadId;
       try {
-        const threadEndpoint = new URL("threads", agentBase);
-        const threadRes = await fetch(threadEndpoint, {
+        if (!activeThreadId) {
+          const threadEndpoint = new URL("threads", agentBase);
+          const threadRes = await fetch(threadEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${credential}`,
+            },
+            body: JSON.stringify({}),
+          });
+          if (threadRes.ok) {
+            const threadData = (await threadRes.json()) as { thread_id?: string; id?: string };
+            activeThreadId = threadData.thread_id || threadData.id;
+          }
+        }
+
+        const targetEndpoint = activeThreadId
+          ? new URL(`threads/${encodeURIComponent(activeThreadId)}/runs/stream`, agentBase)
+          : new URL("runs/stream", agentBase);
+
+        const agentResponse = await fetch(targetEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Accept: "text/event-stream",
             Authorization: `Bearer ${credential}`,
+            "X-PGraph-Token": credential,
           },
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            assistant_id: "p-graph-agent",
+            stream_mode: ["messages", "values"],
+            input: {
+              messages: [{ role: "user", content: contextualMessage }],
+            },
+            config: {
+              configurable: {
+                credential,
+                selectedPath: selected?.path,
+              },
+            },
+          }),
         });
-        if (threadRes.ok) {
-          const threadData = (await threadRes.json()) as { thread_id?: string; id?: string };
-          activeThreadId = threadData.thread_id || threadData.id;
+
+        if (agentResponse.ok && agentResponse.body) {
+          const transformedStream = agentResponse.body.pipeThrough(
+            createLangGraphTransformer(activeThreadId || "")
+          );
+
+          return new Response(transformedStream, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
         }
       } catch {
-        // Continue stateless if /threads cannot be created
+        // Fall back to in-process execution below when external agent is unreachable
       }
     }
 
-    // Connect to agent service
-    let agentResponse: globalThis.Response;
-    try {
-      const targetEndpoint = activeThreadId
-        ? new URL(`threads/${encodeURIComponent(activeThreadId)}/runs/stream`, agentBase)
-        : new URL("runs/stream", agentBase);
+    // Run the Ask agent directly in-process on Vercel
+    const graph = await loadAnalysisGraph(analysis.id, analysis.org_id);
+    const stream = runAgentStream({
+      graph,
+      userMessage,
+      history,
+      threadId,
+      selected,
+      signal: req.signal,
+    });
 
-      agentResponse = await fetch(targetEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-          Authorization: `Bearer ${credential}`,
-          "X-PGraph-Token": credential,
-        },
-        body: JSON.stringify({
-          assistant_id: "p-graph-agent",
-          stream_mode: ["messages", "values"],
-          input: {
-            messages: [{ role: "user", content: contextualMessage }],
-          },
-          config: {
-            configurable: {
-              credential,
-              selectedPath: selected?.path,
-            },
-          },
-        }),
-      });
-    } catch {
-      return agentErrorResponse(
-        new Error(
-          `Agent service is unreachable at ${agentUrl}. Ensure the agent process is running (e.g. 'mda dev' in sandbox/p-graph-agent).`
-        ),
-        503
-      );
-    }
-
-    if (!agentResponse.ok) {
-      const errText = await agentResponse.text().catch(() => "");
-      return agentErrorResponse(
-        new Error(
-          `Agent service returned status ${agentResponse.status}: ${
-            errText || agentResponse.statusText
-          }`
-        ),
-        agentResponse.status
-      );
-    }
-
-    if (!agentResponse.body) {
-      return agentErrorResponse(new Error("No response body received from agent service."), 502);
-    }
-
-    // Relay through transformer to convert LangGraph events into normalized UI stream
-    const transformedStream = agentResponse.body.pipeThrough(
-      createLangGraphTransformer(activeThreadId || "")
-    );
-
-    return new Response(transformedStream, {
+    return new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        ...CORS_HEADERS,
       },
     });
   } catch (error) {

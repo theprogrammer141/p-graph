@@ -75,6 +75,10 @@ export function AskPanel({
     setIsLoading(true);
 
     try {
+      const previousTurns = messages
+        .filter((m) => !m.error && m.content)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const response = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,6 +87,7 @@ export function AskPanel({
           message: text,
           threadId: threadId ?? undefined,
           selected: selection,
+          history: previousTurns,
         }),
       });
 
