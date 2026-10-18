@@ -6,7 +6,7 @@ import { wrapOpenAI } from "langsmith/wrappers";
  * Model name is part of the cache key: re-pinning invalidates only its own cache.
  */
 export const PINNED_MODEL =
-  process.env.AI_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
+  process.env.AI_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
 /**
  * Checks whether LangSmith tracing is configured with valid environment variables.
