@@ -1,6 +1,11 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useRef } from "react";
 import { HeroForm } from "./hero-form";
 import { Logo } from "../logo";
+import { SpotlightCard } from "@/app/components/ui/spotlight-card";
+import { DecryptedText } from "@/app/components/ui/decrypted-text";
+import { animateEntrance } from "@/lib/animations/anime";
 import {
   HeroIllustration,
   WhatItDoesIllustration,
@@ -13,16 +18,37 @@ import {
  * The public marketing landing page rendered at root for signed-out visitors.
  * Follows dense developer-tool aesthetic: monospace accents, capped paragraph measures,
  * unlabelled inline SVG illustrations taking colors directly from the graph canvas tokens.
+ * Enhanced with reactbits.dev interactive components (SpotlightCard, DecryptedText)
+ * and anime.js staggered entry.
  */
 export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }) {
+  const heroRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (heroRef.current) {
+      const items = heroRef.current.querySelectorAll(".hero-reveal");
+      if (items.length > 0) {
+        animateEntrance(Array.from(items), {
+          translateY: [12, 0],
+          staggerMs: 60,
+          duration: 500,
+          ease: "outQuad",
+        });
+      }
+    }
+  }, []);
+
   return (
     <div className="w-full min-h-screen bg-background text-foreground flex flex-col">
       <main className="w-full max-w-285 mx-auto px-6 flex-1">
         {/* HERO SECTION */}
-        <section className="min-h-[calc(100vh-2.75rem)] flex flex-col justify-center py-16 sm:py-24">
+        <section
+          ref={heroRef}
+          className="min-h-[calc(100vh-2.75rem)] flex flex-col justify-center py-16 sm:py-24"
+        >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
             <div className="lg:col-span-7">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="hero-reveal flex items-center gap-2 mb-3">
                 <span className="inline-flex items-center gap-1">
                   <Logo className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
                   <span className="font-jetbrains text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -31,21 +57,23 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
                 </span>
                 <span className="text-zinc-300 dark:text-zinc-700 text-xs">/</span>
                 <span className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">
-                  codebase visualization
+                  <DecryptedText text="codebase visualization" speed={30} />
                 </span>
               </div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-5">
+              <h1 className="hero-reveal text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-5">
                 See the shape of your codebase.
               </h1>
-              <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed mb-8 max-w-[64ch]">
+              <p className="hero-reveal text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed mb-8 max-w-[64ch]">
                 Codebases routinely contain code nobody on the team has read. Paste a public GitHub
                 repository to get a real dependency map: folders as boxes, imports as lines between
                 them. Grounded in AST syntax parsing — no guessing, no approximate structure.
               </p>
-              <HeroForm initialRepoUrl={initialRepoUrl} />
+              <div className="hero-reveal">
+                <HeroForm initialRepoUrl={initialRepoUrl} />
+              </div>
             </div>
 
-            <div className="lg:col-span-5 w-full">
+            <div className="hero-reveal lg:col-span-5 w-full">
               <HeroIllustration className="max-w-120 mx-auto" />
             </div>
           </div>
@@ -56,7 +84,7 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
             <div className="lg:col-span-6">
               <div className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium mb-3">
-                Capabilities
+                <DecryptedText text="Capabilities" speed={40} />
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-6">
                 Folders as boxes. Imports as lines.
@@ -90,7 +118,7 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
 
             <div className="lg:col-span-6 order-1 lg:order-2">
               <div className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium mb-3">
-                Architecture
+                <DecryptedText text="Architecture" speed={40} />
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-6">
                 Every box and line comes from really parsing the code.
@@ -117,7 +145,7 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
             <div className="lg:col-span-6">
               <div className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium mb-3">
-                Compatibility
+                <DecryptedText text="Compatibility" speed={40} />
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-6">
                 Framework knowledge lives in adapters, not in the parser.
@@ -146,7 +174,7 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
         {/* SECTION 4: WHAT IT DELIBERATELY DOESN'T DO */}
         <section className="py-28 sm:py-32 border-t border-zinc-200 dark:border-zinc-800">
           <div className="font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium mb-3">
-            Principles
+            <DecryptedText text="Principles" speed={40} />
           </div>
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.1] text-zinc-900 dark:text-zinc-100 mb-4">
             What we deliberately don&apos;t do.
@@ -158,46 +186,46 @@ export function LandingPage({ initialRepoUrl = "" }: { initialRepoUrl?: string }
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
-            <div className="lg:col-span-7 space-y-8">
-              <div className="border-l-2 border-zinc-200 dark:border-zinc-800 pl-4">
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <SpotlightCard className="p-4 bg-zinc-50/50 dark:bg-zinc-900/40">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-1.5">
-                  No scores, grades, or severity badges
+                  No scores or badges
                 </h3>
-                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-[46ch]">
-                  This product explains a codebase; it does not review one. Once there&apos;s a grade or
-                  an &quot;issues found&quot; badge, teams argue about the number instead of inspecting the map.
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  This product explains a codebase; it does not review one. Once there&apos;s a grade,
+                  teams argue about the score instead of inspecting the map.
                 </p>
-              </div>
+              </SpotlightCard>
 
-              <div className="border-l-2 border-zinc-200 dark:border-zinc-800 pl-4">
+              <SpotlightCard className="p-4 bg-zinc-50/50 dark:bg-zinc-900/40">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-1.5">
-                  No approximate routes or guessed edges
+                  No approximate routes
                 </h3>
-                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-[46ch]">
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
                   If a file or route cannot be recovered from syntax, we show nothing. Absent beats
-                  approximate. An invented connection destroys trust in every other edge on the canvas.
+                  approximate. No invented connections.
                 </p>
-              </div>
+              </SpotlightCard>
 
-              <div className="border-l-2 border-zinc-200 dark:border-zinc-800 pl-4">
+              <SpotlightCard className="p-4 bg-zinc-50/50 dark:bg-zinc-900/40">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-1.5">
-                  No letting AI traverse the graph
+                  No AI graph walks
                 </h3>
-                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-[46ch]">
-                  The model never walks the repository when arithmetic can do it. It selects starting
-                  nodes; graph arithmetic traces paths. The AI explains code; it never decides topology.
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  The model never walks the repository when arithmetic can do it. Graph arithmetic
+                  traces paths; AI explains the code.
                 </p>
-              </div>
+              </SpotlightCard>
 
-              <div className="border-l-2 border-zinc-200 dark:border-zinc-800 pl-4">
+              <SpotlightCard className="p-4 bg-zinc-50/50 dark:bg-zinc-900/40">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-1.5">
-                  No private repository tokens or credential storage
+                  No stored tokens
                 </h3>
-                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-[46ch]">
-                  Sign-in provides identity and organization isolation only. We request no repository
-                  write scopes, clone no private code, and store no repository tokens. Public repositories only.
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  Sign-in provides identity and organization isolation only. We store no repository
+                  tokens. Public repositories only.
                 </p>
-              </div>
+              </SpotlightCard>
             </div>
 
             <div className="lg:col-span-5 w-full">

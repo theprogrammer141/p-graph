@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import type { SelectionTarget } from "./workspace-shell";
+import { ClickSpark } from "@/app/components/ui/click-spark";
+import { BorderTrail } from "@/app/components/ui/border-trail";
 
 export interface ToolCallItem {
   id: string;
@@ -38,6 +40,7 @@ export function AskPanel({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -259,7 +262,7 @@ export function AskPanel({
           {selection?.kind === "file" && (
             <span
               title={`Selected file: ${selection.path}`}
-              className="ml-1 px-1.5 py-0.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-(--pg-accent) truncate max-w-[140px]"
+              className="ml-1 px-1.5 py-0.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-(--pg-accent) truncate max-w-35"
             >
               {selection.path}
             </span>
@@ -267,7 +270,7 @@ export function AskPanel({
           {selection?.kind === "folder" && (
             <span
               title={`Selected directory: ${selection.dir}`}
-              className="ml-1 px-1.5 py-0.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 truncate max-w-[140px]"
+              className="ml-1 px-1.5 py-0.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 truncate max-w-35"
             >
               {selection.dir}/
             </span>
@@ -298,11 +301,11 @@ export function AskPanel({
             <div className="font-mono text-zinc-400 dark:text-zinc-500 text-[11px]">
               Ask questions about {repoName}
             </div>
-            <div className="text-[10px] text-zinc-500 dark:text-zinc-400 max-w-[240px] leading-relaxed">
+            <div className="text-[10px] text-zinc-500 dark:text-zinc-400 max-w-60 leading-relaxed">
               Every answer is verified against the real dependency graph using tools.
             </div>
 
-            <div className="flex flex-col gap-1.5 w-full max-w-[260px] pt-2">
+            <div className="flex flex-col gap-1.5 w-full max-w-65 pt-2">
               <button
                 type="button"
                 onClick={() => handleSend("Where is authentication handled?")}
@@ -328,7 +331,7 @@ export function AskPanel({
           </div>
         ) : (
           messages.map((m) => (
-            <div key={m.id} className="space-y-1.5">
+            <div key={m.id} className="space-y-1.5 animate-[fadeIn_0.2s_ease-out]">
               {m.role === "user" ? (
                 <div className="flex justify-end">
                   <div className="max-w-[85%] px-2.5 py-1.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-sans text-xs leading-relaxed whitespace-pre-wrap">
@@ -360,7 +363,7 @@ export function AskPanel({
                               {tc.name}
                             </span>
                             {argsStr && (
-                              <span className="text-zinc-400 dark:text-zinc-500 truncate max-w-[180px]">
+                              <span className="text-zinc-400 dark:text-zinc-500 truncate max-w-45">
                                 {argsStr}
                               </span>
                             )}
@@ -405,20 +408,27 @@ export function AskPanel({
             ref={inputRef}
             rows={1}
             value={inputValue}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
             placeholder={isLoading ? "Agent working..." : "Ask repository question (Enter)..."}
             className="w-full resize-none bg-transparent px-2.5 py-2 text-xs font-sans text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none max-h-24 scrollbar-thin"
           />
-          <button
-            type="button"
-            onClick={() => handleSend()}
-            disabled={isLoading || !inputValue.trim()}
-            className="mr-1.5 px-2 py-1 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-mono text-[10px] font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-800 dark:hover:bg-zinc-200 cursor-pointer shrink-0 transition-opacity"
-          >
-            Ask
-          </button>
+          {(isFocused || isLoading) && (
+            <BorderTrail size={25} duration={3} color="rgba(37, 99, 235, 0.75)" />
+          )}
+          <ClickSpark sparkColor="#3b82f6" sparkRadius={16} sparkCount={8}>
+            <button
+              type="button"
+              onClick={() => handleSend()}
+              disabled={isLoading || !inputValue.trim()}
+              className="mr-1.5 px-2 py-1 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-mono text-[10px] font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.97] cursor-pointer shrink-0 transition-all"
+            >
+              Ask
+            </button>
+          </ClickSpark>
         </div>
       </div>
     </div>

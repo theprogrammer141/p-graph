@@ -16,6 +16,10 @@ import {
 } from "@/app/actions/ai";
 import { reanalyseRepoAction } from "@/app/actions/analysis";
 import { AskPanel } from "./ask-panel";
+import { SpotlightCard } from "@/app/components/ui/spotlight-card";
+import { CountUp } from "@/app/components/ui/count-up";
+import { ClickSpark } from "@/app/components/ui/click-spark";
+import { BorderTrail } from "@/app/components/ui/border-trail";
 
 export interface RouteItem {
   readonly id?: string;
@@ -134,13 +138,20 @@ export function DetailPane({
         <>
           {/* Secondary bar: Structure vs Explanation tabs */}
           <div className="h-8 px-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-100/50 dark:bg-zinc-900/40 font-mono text-[10px]">
-            <div className="flex items-center gap-1">
+            <div className="relative flex items-center p-0.5 rounded-xs bg-zinc-200/50 dark:bg-zinc-800/50">
+              <div
+                className="absolute top-0.5 bottom-0.5 rounded-xs bg-white dark:bg-zinc-900 shadow-xs border border-zinc-200/80 dark:border-zinc-700/80 transition-all duration-200 ease-out"
+                style={{
+                  left: activeTab === "structure" ? "2px" : "calc(50% + 1px)",
+                  width: "calc(50% - 3px)",
+                }}
+              />
               <button
                 type="button"
                 onClick={() => onTabChange("structure")}
-                className={`px-2 py-0.5 rounded-xs font-medium cursor-pointer transition-colors ${
+                className={`relative z-10 px-2 py-0.5 font-medium cursor-pointer transition-colors ${
                   activeTab === "structure"
-                    ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700"
+                    ? "text-zinc-900 dark:text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
@@ -149,9 +160,9 @@ export function DetailPane({
               <button
                 type="button"
                 onClick={() => onTabChange("explanation")}
-                className={`px-2 py-0.5 rounded-xs font-medium cursor-pointer transition-colors ${
+                className={`relative z-10 px-2 py-0.5 font-medium cursor-pointer transition-colors ${
                   activeTab === "explanation"
-                    ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700"
+                    ? "text-zinc-900 dark:text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
@@ -166,7 +177,7 @@ export function DetailPane({
           </div>
 
           {/* Pane Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-thin flex flex-col">
+          <div key={activeTab} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-thin flex flex-col animate-[fadeIn_0.15s_ease-out]">
             {activeTab === "explanation" ? (
               <ExplanationTab
                 analysisId={analysisId}
@@ -453,7 +464,8 @@ function ExplanationTab({
 
       {/* Loading state */}
       {loading && (
-        <div className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-900/50 flex flex-col items-center justify-center gap-2 text-center">
+        <div className="relative p-4 border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-900/50 flex flex-col items-center justify-center gap-2 text-center overflow-hidden">
+          <BorderTrail size={25} duration={2.5} color="rgba(37, 99, 235, 0.8)" />
           <div className="w-4 h-4 border-2 border-(--pg-accent) border-t-transparent rounded-full animate-spin" />
           <p className="text-zinc-700 dark:text-zinc-300 font-medium text-xs">
             Generating explanation...
@@ -512,13 +524,15 @@ function ExplanationTab({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleExplain}
-                className="w-full py-1.5 px-3 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium text-xs hover:opacity-90 cursor-pointer shadow-xs"
-              >
-                {selection.kind === "folder" ? "Explain Folder" : "Explain File"}
-              </button>
+              <ClickSpark className="w-full" sparkColor="#3b82f6" sparkRadius={28} sparkCount={12}>
+                <button
+                  type="button"
+                  onClick={handleExplain}
+                  className="w-full py-1.5 px-3 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium text-xs hover:opacity-90 active:scale-[0.98] transition-transform cursor-pointer shadow-xs"
+                >
+                  {selection.kind === "folder" ? "Explain Folder" : "Explain File"}
+                </button>
+              </ClickSpark>
             </>
           )}
         </div>
@@ -526,14 +540,14 @@ function ExplanationTab({
 
       {/* Rendered explanation prose */}
       {cached && !loading && (
-        <div className="flex flex-col gap-3">
-          <div className="p-3 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <SpotlightCard className="p-3 bg-white dark:bg-zinc-900/40" spotlightSize={300}>
             <ExplanationRenderer
               content={cached.content}
               knownFiles={knownFilesSet}
               onSelectFile={onSelectFile}
             />
-          </div>
+          </SpotlightCard>
 
           {/* Actual neighbours section for files */}
           {selection?.kind === "file" && fileDetail && (
@@ -752,44 +766,45 @@ function RepoSummaryView({
 
       {/* Counts: files, imports, routes, unidentified */}
       <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
-        <div className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60">
+        <SpotlightCard className="p-2 bg-white dark:bg-zinc-900/60" spotlightSize={200}>
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase">
             Files
           </div>
           <div className="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">
-            {summary.fileCount}
+            <CountUp to={summary.fileCount} duration={600} />
           </div>
-        </div>
+        </SpotlightCard>
 
-        <div className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60">
+        <SpotlightCard className="p-2 bg-white dark:bg-zinc-900/60" spotlightSize={200}>
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase">
             Imports
           </div>
           <div className="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">
-            {summary.importCount}
+            <CountUp to={summary.importCount} duration={600} />
           </div>
-        </div>
+        </SpotlightCard>
 
-        <div className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60">
+        <SpotlightCard className="p-2 bg-white dark:bg-zinc-900/60" spotlightSize={200}>
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase">
             Routes
           </div>
           <div className="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">
-            {summary.routeCount}
+            <CountUp to={summary.routeCount} duration={600} />
           </div>
-        </div>
+        </SpotlightCard>
 
-        <div
-          className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60"
+        <SpotlightCard
+          className="p-2 bg-white dark:bg-zinc-900/60"
+          spotlightSize={200}
           title="Files that could not be identified by framework or naming conventions"
         >
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase">
             No convention
           </div>
           <div className="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">
-            {summary.unidentifiedCount}
+            <CountUp to={summary.unidentifiedCount} duration={600} />
           </div>
-        </div>
+        </SpotlightCard>
       </div>
 
       {/* Extracted routes table */}
@@ -1038,13 +1053,15 @@ function FileDetailView({
           </span>
 
           {onTabChange && (
-            <button
-              type="button"
-              onClick={() => onTabChange("explanation")}
-              className="ml-auto px-1.5 py-0.5 rounded-xs bg-(--pg-accent)/10 text-(--pg-accent) font-medium hover:bg-(--pg-accent)/20 cursor-pointer"
-            >
-              Explain →
-            </button>
+            <ClickSpark sparkColor="#3b82f6" sparkRadius={16} sparkCount={8} className="ml-auto">
+              <button
+                type="button"
+                onClick={() => onTabChange("explanation")}
+                className="px-1.5 py-0.5 rounded-xs bg-(--pg-accent)/10 text-(--pg-accent) font-medium hover:bg-(--pg-accent)/20 cursor-pointer active:scale-95 transition-transform"
+              >
+                Explain →
+              </button>
+            </ClickSpark>
           )}
         </div>
       </div>
@@ -1075,7 +1092,7 @@ function FileDetailView({
 
       {/* Fan metrics */}
       <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
-        <div className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60">
+        <SpotlightCard className="p-2 bg-white dark:bg-zinc-900/60" spotlightSize={180}>
           <div className="text-[10px] uppercase text-zinc-400 dark:text-zinc-500">
             Depends on
           </div>
@@ -1083,11 +1100,11 @@ function FileDetailView({
             className="text-sm font-semibold tabular-nums"
             style={{ color: "var(--pg-out)" }}
           >
-            {detail.dependsOnCount}
+            <CountUp to={detail.dependsOnCount} duration={500} />
           </div>
-        </div>
+        </SpotlightCard>
 
-        <div className="p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60">
+        <SpotlightCard className="p-2 bg-white dark:bg-zinc-900/60" spotlightSize={180}>
           <div className="text-[10px] uppercase text-zinc-400 dark:text-zinc-500">
             Depended on by
           </div>
@@ -1095,9 +1112,9 @@ function FileDetailView({
             className="text-sm font-semibold tabular-nums"
             style={{ color: "var(--pg-in)" }}
           >
-            {detail.dependedOnCount}
+            <CountUp to={detail.dependedOnCount} duration={500} />
           </div>
-        </div>
+        </SpotlightCard>
       </div>
 
       {/* Transitive walk buttons: Blast radius and Dependency chain */}
@@ -1429,25 +1446,29 @@ function FolderDetailView({
         </div>
         <div className="mt-1 flex items-center justify-between font-mono text-[10px] text-zinc-500">
           <div className="flex items-center gap-2">
-            <span className="tabular-nums">{detail.fileCount} files</span>
+            <span className="tabular-nums">
+              <CountUp to={detail.fileCount} duration={500} /> files
+            </span>
             <span>·</span>
             <span style={{ color: "var(--pg-in)" }} className="tabular-nums">
-              in {detail.fanIn}
+              in <CountUp to={detail.fanIn} duration={500} />
             </span>
             <span>·</span>
             <span style={{ color: "var(--pg-out)" }} className="tabular-nums">
-              out {detail.fanOut}
+              out <CountUp to={detail.fanOut} duration={500} />
             </span>
           </div>
 
           {onTabChange && (
-            <button
-              type="button"
-              onClick={() => onTabChange("explanation")}
-              className="px-1.5 py-0.5 rounded-xs bg-(--pg-accent)/10 text-(--pg-accent) font-medium hover:bg-(--pg-accent)/20 cursor-pointer"
-            >
-              Explain Folder →
-            </button>
+            <ClickSpark sparkColor="#3b82f6" sparkRadius={16} sparkCount={8}>
+              <button
+                type="button"
+                onClick={() => onTabChange("explanation")}
+                className="px-1.5 py-0.5 rounded-xs bg-(--pg-accent)/10 text-(--pg-accent) font-medium hover:bg-(--pg-accent)/20 cursor-pointer active:scale-95 transition-transform"
+              >
+                Explain Folder →
+              </button>
+            </ClickSpark>
           )}
         </div>
       </div>

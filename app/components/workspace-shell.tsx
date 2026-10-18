@@ -16,6 +16,8 @@ import { reanalyseRepoAction } from "@/app/actions/analysis";
 import { GraphCanvas } from "./graph-canvas";
 import { DetailPane, type RouteItem } from "./detail-pane";
 import { CoverageBanner } from "./coverage-banner";
+import { CountUp } from "@/app/components/ui/count-up";
+import { ClickSpark } from "@/app/components/ui/click-spark";
 
 export type SelectionTarget =
   | { kind: "file"; path: string }
@@ -185,7 +187,7 @@ export function WorkspaceShell({
             </button>
           ) : (
             <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 tabular-nums">
-              {totalFiles} files
+              <CountUp to={totalFiles} duration={600} /> files
             </span>
           )}
         </div>
@@ -236,19 +238,21 @@ export function WorkspaceShell({
           <div className="flex items-center gap-3 font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
             {edgeCount !== undefined && (
               <div>
-                <span className="tabular-nums">{edgeCount}</span> edges
+                <CountUp to={edgeCount} duration={600} /> edges
               </div>
             )}
             {analysisId && (
-              <button
-                type="button"
-                onClick={handleReanalyse}
-                disabled={isReanalysing}
-                className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors"
-                title="Re-analyse this repository"
-              >
-                {isReanalysing ? "Re-analysing..." : "Re-analyse"}
-              </button>
+              <ClickSpark sparkColor="#3b82f6" sparkRadius={16} sparkCount={8}>
+                <button
+                  type="button"
+                  onClick={handleReanalyse}
+                  disabled={isReanalysing}
+                  className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors active:scale-95"
+                  title="Re-analyse this repository"
+                >
+                  {isReanalysing ? "Re-analysing..." : "Re-analyse"}
+                </button>
+              </ClickSpark>
             )}
           </div>
         </div>

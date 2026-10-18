@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { PipelineStage } from "@/lib/pipeline/run";
+import { DecryptedText } from "@/app/components/ui/decrypted-text";
+import { SpotlightCard } from "@/app/components/ui/spotlight-card";
+import { animateEntrance } from "@/lib/animations/anime";
 
 export interface AnalysisItem {
   id: string;
@@ -61,7 +64,7 @@ function renderStatus(item: AnalysisItem) {
   switch (status) {
     case "complete":
       return (
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-400">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           complete
         </span>
@@ -70,7 +73,7 @@ function renderStatus(item: AnalysisItem) {
       if (isStale(created_at)) {
         return (
           <span
-            className="inline-flex items-center gap-1.5 font-mono text-[11px] text-amber-700 dark:text-amber-400"
+            className="inline-flex items-center gap-1.5 font-mono text-[11px] text-amber-700 dark:text-amber-400 font-medium"
             title="Analysis has been running for over 5 minutes without completing"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -79,14 +82,14 @@ function renderStatus(item: AnalysisItem) {
         );
       }
       return (
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-blue-700 dark:text-blue-400">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-blue-700 dark:text-blue-400 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
           parsing {stage ? `(${stage})` : ""}
         </span>
       );
     case "failed":
       return (
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-rose-700 dark:text-rose-400">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-rose-700 dark:text-rose-400 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
           failed
         </span>
@@ -94,7 +97,7 @@ function renderStatus(item: AnalysisItem) {
     case "queued":
     default:
       return (
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
           {status}
         </span>
@@ -177,21 +180,40 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
     };
   }, [activeAnalysisIdsKey, getToken]);
 
+  const tbodyRef = React.useRef<HTMLTableSectionElement>(null);
+
+  useEffect(() => {
+    if (tbodyRef.current) {
+      const rows = tbodyRef.current.querySelectorAll("tr");
+      if (rows.length > 0) {
+        animateEntrance(Array.from(rows), {
+          translateY: [8, 0],
+          staggerMs: 35,
+          duration: 350,
+          ease: "outQuad",
+        });
+      }
+    }
+  }, [analyses.length]);
+
   if (analyses.length === 0) {
     return (
-      <div className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xs px-4 py-12 text-center bg-white dark:bg-zinc-950">
+      <SpotlightCard className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xs px-4 py-12 text-center bg-white dark:bg-zinc-950">
         <div className="font-mono text-[11px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
-          Empty Workspace
+          <DecryptedText text="Empty Workspace" speed={40} />
         </div>
         <p className="text-zinc-600 dark:text-zinc-400">
           This organization hasn&apos;t analysed a repository yet.
         </p>
-      </div>
+      </SpotlightCard>
     );
   }
 
   return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-950 overflow-hidden shadow-2xs">
+    <SpotlightCard
+      className="p-0 border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-950 overflow-hidden shadow-2xs"
+      spotlightSize={400}
+    >
       <table className="w-full border-collapse">
         <thead>
           <tr className="text-left font-mono text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/80 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 select-none">
@@ -201,7 +223,7 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
             <th className="font-medium py-2 px-3 text-right">Duration</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={tbodyRef}>
           {analyses.map((a) => {
             const project = a.project;
             return (
@@ -215,9 +237,11 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
                       href={`/analysis/${a.id}`}
                       className="text-zinc-900 dark:text-zinc-100 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1 group"
                     >
-                      <span>
-                        {project.owner}/{project.name}
-                      </span>
+                      <DecryptedText
+                        text={`${project.owner}/${project.name}`}
+                        animateOn="hover"
+                        speed={30}
+                      />
                       <span className="text-zinc-400 dark:text-zinc-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 text-[10px]">
                         →
                       </span>
@@ -251,6 +275,6 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
         </span>
         <span>RLS isolated</span>
       </div>
-    </div>
+    </SpotlightCard>
   );
 }

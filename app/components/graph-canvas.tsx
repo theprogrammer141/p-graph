@@ -128,7 +128,7 @@ const FoldedNode = memo(function FoldedNode({ data }: NodeProps<FoldedFlowNode>)
         selectedCategory ? `\n${matchCount} matching ${selectedCategory}` : ""
       }`}
       style={{ width: model.width, height: model.height, opacity: isLit ? 1 : 0.25 }}
-      className={`pointer-events-auto flex flex-col justify-center px-2.5 rounded-xs border bg-white dark:bg-zinc-900 cursor-pointer transition-[border-color,box-shadow,opacity] ${
+      className={`pointer-events-auto flex flex-col justify-center px-2.5 rounded-xs border bg-white dark:bg-zinc-900 cursor-pointer active:scale-[0.98] transition-all duration-150 ${
         isSelected
           ? "border-(--pg-accent) ring-1 ring-(--pg-accent)"
           : isHovered
@@ -225,8 +225,8 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
               onMouseLeave={() => {
                 if (row.kind === "file") hover(null);
               }}
-              className={`relative flex items-center gap-1.5 px-2.5 font-mono text-[11px] shrink-0 transition-colors ${
-                row.kind === "file" ? "cursor-pointer" : ""
+              className={`relative flex items-center gap-1.5 px-2.5 font-mono text-[11px] shrink-0 transition-all duration-150 ${
+                row.kind === "file" ? "cursor-pointer active:scale-[0.99]" : ""
               } ${
                 isSelectedRow
                   ? "bg-(--pg-accent)/10 text-zinc-900 dark:text-zinc-100 font-medium ring-1 ring-(--pg-accent)"

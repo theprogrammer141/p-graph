@@ -6,6 +6,9 @@ import { useAuth } from "@clerk/nextjs";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { PipelineStage } from "@/lib/pipeline/run";
 import { rerunAnalysisAction } from "@/app/actions/analysis";
+import { BorderTrail } from "@/app/components/ui/border-trail";
+import { ClickSpark } from "@/app/components/ui/click-spark";
+import { SpotlightCard } from "@/app/components/ui/spotlight-card";
 
 const STAGES: Array<{ id: PipelineStage; label: string }> = [
   { id: "fetch", label: "fetch" },
@@ -147,7 +150,10 @@ export function AnalysisProgress({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-950/50 text-xs">
-      <div className="w-full max-w-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xs shadow-2xs p-5">
+      <SpotlightCard className="relative overflow-hidden w-full max-w-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xs shadow-2xs p-5" spotlightSize={350}>
+        {status !== "failed" && status !== "complete" && (
+          <BorderTrail size={25} duration={3} color="rgba(37, 99, 235, 0.7)" />
+        )}
         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3 mb-4">
           <div className="font-mono text-[11px]">
             <a
@@ -176,16 +182,27 @@ export function AnalysisProgress({
                 {error ?? message}
               </p>
             </div>
-            <button
-              onClick={handleRerun}
-              disabled={isRerunning}
-              className="w-full py-1.5 px-3 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 font-mono text-[11px] font-medium rounded-xs hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors"
-            >
-              {isRerunning ? "Re-running..." : "Re-run analysis"}
-            </button>
+            <ClickSpark sparkColor="rgba(37, 99, 235, 0.9)" sparkRadius={16} sparkCount={6}>
+              <button
+                onClick={handleRerun}
+                disabled={isRerunning}
+                className="w-full py-1.5 px-3 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 font-mono text-[11px] font-medium rounded-xs hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {isRerunning ? "Re-running..." : "Re-run analysis"}
+              </button>
+            </ClickSpark>
           </div>
         ) : (
           <div>
+            {/* Progress track */}
+            <div className="w-full h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mb-4">
+              <div
+                className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                style={{
+                  width: `${Math.max(12, ((currentIdx + 1) / STAGES.length) * 100)}%`,
+                }}
+              />
+            </div>
             <div className="space-y-2 mb-4">
               {STAGES.map((s, idx) => {
                 const isPast = currentIdx > idx;
@@ -228,7 +245,7 @@ export function AnalysisProgress({
             </div>
           </div>
         )}
-      </div>
+      </SpotlightCard>
     </div>
   );
 }
