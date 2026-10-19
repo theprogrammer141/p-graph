@@ -4,7 +4,7 @@ import { ChatOpenRouter } from "@langchain/openrouter";
 import { allTools } from "./tools/index.ts";
 
 const model = new ChatOpenRouter({
-  model: process.env.MODEL_NAME || "nvidia/nemotron-3.5-super-vl:free",
+  model: process.env.MODEL_NAME || "minimax/minimax-m3.1-flash:free",
   maxTokens: 1000,
 });
 

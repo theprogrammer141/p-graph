@@ -15,7 +15,7 @@ const instructionsPath = path.join(__dirname, "instructions.md");
 const systemPrompt = fs.readFileSync(instructionsPath, "utf-8");
 
 const model = new ChatOpenRouter({
-  model: process.env.MODEL_NAME || "nvidia/nemotron-3.5-super-vl:free",
+  model: process.env.MODEL_NAME || "minimax/minimax-m3.1-flash:free",
   maxTokens: 1000,
 });
 

@@ -25,4 +25,7 @@ You are the p-graph repository intelligence agent. You answer developer question
 
 6. **Context resolution across turns.**
    When answering follow-up questions referencing previous files (e.g., "what breaks if I change that?", "who depends on that?"), resolve the reference to the specific file from the previous turn and run the appropriate tool (such as \`transitive_walk\` in the \`blast-radius\` direction).
+
+7. **Stop looking once you have the facts.**
+   As soon as tool results answer the question, write the answer. Never repeat a lookup you already ran, and never search again for a file a previous result already returned.
 `;

@@ -21,6 +21,19 @@ export interface RunAgentParams {
 // In-memory conversation state for requests sharing a process instance
 export const inMemoryThreadStore = new Map<string, ChatHistoryItem[]>();
 
+function extractThinkTags(text: string): { cleanText: string; thinkText: string } {
+  const thinkMatches = text.match(/<think>([\s\S]*?)<\/think>/gi);
+  let thinkText = "";
+  if (thinkMatches) {
+    thinkText = thinkMatches
+      .map((m) => m.replace(/<\/?think>/gi, "").trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+  const cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  return { cleanText, thinkText };
+}
+
 /**
  * Runs the Ask agent in-process, executing real graph lookups and streaming SSE chunks directly.
  */
@@ -68,17 +81,38 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
         let fullText = "";
         const MAX_TOOL_ROUNDS = 5;
 
-        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        // Rounds 0..MAX_TOOL_ROUNDS-1 may call tools. The pinned model can keep
+        // re-searching forever, so the extra last round offers no tools and tells it
+        // to answer from the tool results it already has. tool_choice "none" was
+        // tried first: this model then writes a fake tool call out as plain text.
+        for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
           if (signal?.aborted) break;
+          const isFinalRound = round === MAX_TOOL_ROUNDS;
 
-          const responseStream = await client.chat.completions.create({
-            model,
-            messages: conversation,
-            tools: AGENT_TOOLS,
-            stream: true,
-          });
+          const responseStream = await client.chat.completions.create(
+            isFinalRound
+              ? {
+                  model,
+                  messages: [
+                    ...conversation,
+                    {
+                      role: "system",
+                      content:
+                        "Lookup budget exhausted. Answer the user now in plain prose using only the tool results above. If they do not answer the question, say what could not be found. Do not call or write out any tool calls.",
+                    },
+                  ],
+                  stream: true,
+                }
+              : {
+                  model,
+                  messages: conversation,
+                  tools: AGENT_TOOLS,
+                  stream: true,
+                }
+          );
 
           let roundContent = "";
+          let finishReason: string | null = null;
           interface PendingToolCall {
             id: string;
             name: string;
@@ -90,6 +124,7 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
             if (signal?.aborted) break;
             const choice = chunk.choices[0];
             const delta = choice?.delta;
+            if (choice?.finish_reason) finishReason = choice.finish_reason;
 
             if (delta?.tool_calls) {
               for (const tc of delta.tool_calls) {
@@ -109,17 +144,39 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
               }
             }
 
+            const reasoningDelta = (delta as { reasoning?: string })?.reasoning;
+            if (reasoningDelta) {
+              emit("reasoning", { text: reasoningDelta });
+            }
+
             if (delta?.content) {
               roundContent += delta.content;
-              fullText += delta.content;
-              emit("text_chunk", { text: delta.content });
             }
+          }
+
+          if (finishReason === "length") {
+            throw new Error("Agent response was cut off by the token limit.");
           }
 
           const toolCalls = Array.from(callsByIndex.values()).filter((c) => Boolean(c.name));
 
           if (toolCalls.length === 0) {
+            // Final round with no tool calls: this is the real response.
+            const { cleanText, thinkText } = extractThinkTags(roundContent);
+            if (thinkText) {
+              emit("reasoning", { text: thinkText });
+            }
+            if (cleanText) {
+              fullText = cleanText;
+              emit("text_chunk", { text: cleanText });
+            }
             break;
+          }
+
+          // If this round made tool calls, any text produced before/during the calls
+          // is intermediate reasoning/commentary, NOT the final response.
+          if (roundContent.trim()) {
+            emit("reasoning", { text: roundContent.trim() });
           }
 
           conversation.push({
@@ -170,6 +227,10 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
               content: typeof output === "string" ? output : JSON.stringify(output),
             });
           }
+        }
+
+        if (!signal?.aborted && fullText.trim().length === 0) {
+          throw new Error("The model returned no answer text. Try asking again.");
         }
 
         // Persist history for subsequent turns

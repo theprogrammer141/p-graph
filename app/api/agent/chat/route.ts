@@ -149,6 +149,7 @@ function createLangGraphTransformer(activeThreadId: string) {
             eventType === "tool_start" ||
             eventType === "tool_end" ||
             eventType === "text_chunk" ||
+            eventType === "reasoning" ||
             eventType === "done"
           ) {
             controller.enqueue(encoder.encode(`${block}\n\n`));

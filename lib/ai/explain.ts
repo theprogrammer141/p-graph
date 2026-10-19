@@ -37,6 +37,11 @@ export interface ExplainResult {
 }
 
 const FALLBACK_EXPLANATION = "No explanation returned by model.";
+
+// The pinned model reasons before answering, and reasoning tokens are billed
+// against max_tokens. 500 left too little room and answers were cut mid-sentence.
+const EXPLAIN_MAX_TOKENS = 2000;
+const ROLE_MAX_TOKENS = 1000;
 const MAX_FOLDER_FILES_IN_PROMPT = 30;
 const MAX_FOLDER_NEIGHBOURS_IN_PROMPT = 25;
 const MAX_ROLE_NEIGHBOURS_IN_PROMPT = 15;
@@ -124,7 +129,8 @@ export function computeFileCacheKey(
 ): string {
   return crypto
     .createHash("sha256")
-    .update(`v1:explain_file:${model}:${filePath}:${sha256}`)
+    // v2: v1 rows may hold explanations truncated by the old token budget.
+    .update(`v2:explain_file:${model}:${filePath}:${sha256}`)
     .digest("hex");
 }
 
@@ -151,7 +157,7 @@ export function computeFolderCacheKey(
 ): string {
   return crypto
     .createHash("sha256")
-    .update(`v1:explain_folder:${model}:${folderPath}:${folderContentHash}`)
+    .update(`v2:explain_folder:${model}:${folderPath}:${folderContentHash}`)
     .digest("hex");
 }
 
@@ -174,6 +180,7 @@ function extractCompletionContent(completion: unknown): string {
     error?: { message?: string; code?: number };
     choices?: Array<{
       message?: { content?: string | null };
+      finish_reason?: string | null;
     }>;
   };
 
@@ -186,6 +193,11 @@ function extractCompletionContent(completion: unknown): string {
   const choice = res?.choices?.[0];
   if (!choice) {
     throw new Error("AI provider returned no completion choices.");
+  }
+
+  // A cut-off answer must never be shown or cached as if it were complete.
+  if (choice.finish_reason === "length") {
+    throw new Error("AI response was cut off by the token limit. Try again.");
   }
 
   return choice.message?.content?.trim() ?? "";
@@ -274,7 +286,7 @@ export const explainFileTraced = traceable(
         { role: "user", content: userPrompt },
       ],
       temperature: 0.2,
-      max_tokens: 500,
+      max_tokens: EXPLAIN_MAX_TOKENS,
     });
 
     const rawContent = extractCompletionContent(completion);
@@ -405,7 +417,7 @@ export const explainFolderTraced = traceable(
         { role: "user", content: userPrompt },
       ],
       temperature: 0.2,
-      max_tokens: 500,
+      max_tokens: EXPLAIN_MAX_TOKENS,
     });
 
     const rawContent = extractCompletionContent(completion);
@@ -520,7 +532,7 @@ export const classifyFileRoleTraced = traceable(
         { role: "user", content: userPrompt },
       ],
       temperature: 0.1,
-      max_tokens: 200,
+      max_tokens: ROLE_MAX_TOKENS,
     });
 
     const raw = extractCompletionContent(completion);

@@ -18,6 +18,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   toolCalls?: ToolCallItem[];
+  reasoning?: string;
   isStreaming?: boolean;
   error?: string;
 }
@@ -178,6 +179,21 @@ export function AskPanel({
                   return { ...m, toolCalls: updatedCalls };
                 })
               );
+            } else if (eventType === "reasoning") {
+              if (data.text) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantMessageId) return m;
+                    const prevText = m.reasoning || "";
+                    const newText = prevText
+                      ? prevText.endsWith("\n") || data.text.startsWith("\n")
+                        ? prevText + data.text
+                        : `${prevText}\n${data.text}`
+                      : data.text;
+                    return { ...m, reasoning: newText };
+                  })
+                );
+              }
             } else if (eventType === "text_chunk") {
               if (data.text) {
                 setMessages((prev) =>
@@ -340,6 +356,22 @@ export function AskPanel({
                 </div>
               ) : (
                 <div className="space-y-1.5">
+                  {/* Reasoning steps rendered cleanly above the final response */}
+                  {m.reasoning && (
+                    <details
+                      className="group border border-zinc-200/80 dark:border-zinc-800/80 rounded-xs bg-zinc-100/50 dark:bg-zinc-900/40 text-[10px] font-mono text-zinc-500 dark:text-zinc-400"
+                      open={m.isStreaming && !m.content}
+                    >
+                      <summary className="px-2 py-1 cursor-pointer select-none font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                        <span>Reasoning</span>
+                      </summary>
+                      <div className="px-2 pb-1.5 pt-0.5 border-t border-zinc-200/60 dark:border-zinc-800/60 text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap text-[9.5px] leading-relaxed">
+                        {m.reasoning}
+                      </div>
+                    </details>
+                  )}
+
                   {/* Tool calls rendered visible above the answer */}
                   {m.toolCalls && m.toolCalls.length > 0 && (
                     <div className="space-y-1">
