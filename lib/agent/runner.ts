@@ -3,6 +3,7 @@ import { getAIClient, PINNED_MODEL } from "@/lib/ai/client";
 import type { AnalysisGraph } from "./loader";
 import { AGENT_SYSTEM_PROMPT } from "./prompt";
 import { AGENT_TOOLS, executeAgentTool } from "./tools";
+import { toUserFacingMessage } from "@/lib/errors";
 
 export interface ChatHistoryItem {
   role: "user" | "assistant";
@@ -243,8 +244,12 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
         emit("done", { threadId: activeThreadId, fullText });
         controller.close();
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        emit("error", { error: errorMsg });
+        const userFacing = toUserFacingMessage(
+          err,
+          "The AI agent encountered an issue while generating an answer. Please try again.",
+          "agent.runner.stream",
+        );
+        emit("error", { error: userFacing.message });
         controller.close();
       }
     },

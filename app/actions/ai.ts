@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/explain";
 import { isTracingConfigured } from "@/lib/ai/client";
 import { checkFileStaleness } from "@/lib/ai/staleness";
+import { toUserFacingMessage, logServerError } from "@/lib/errors";
 
 export interface ExplainActionResult {
   readonly ok: boolean;
@@ -150,8 +151,8 @@ export async function explainFileAction(params: {
       model: result.model,
     };
   } catch (err: unknown) {
-    console.error("Failed to explain file:", err);
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const userFacing = toUserFacingMessage(err, "Failed to explain file. Please try again.", "ai.explainFileAction");
+    return { ok: false, error: userFacing.message };
   }
 }
 
@@ -244,8 +245,8 @@ export async function explainFolderAction(params: {
       model: result.model,
     };
   } catch (err: unknown) {
-    console.error("Failed to explain folder:", err);
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const userFacing = toUserFacingMessage(err, "Failed to explain folder. Please try again.", "ai.explainFolderAction");
+    return { ok: false, error: userFacing.message };
   }
 }
 
@@ -273,7 +274,8 @@ export async function classifyFileRoleAction(params: {
     .single();
 
   if (fileError || !targetFile) {
-    return { ok: false, error: `File not found: ${fileError?.message}` };
+    logServerError("ai.classifyFileRoleAction.fileFetch", fileError);
+    return { ok: false, error: "Target file not found in analysis." };
   }
 
   const [{ data: outgoingEdges }, { data: incomingEdges }] = await Promise.all([
@@ -318,7 +320,7 @@ export async function classifyFileRoleAction(params: {
 
     return { ok: true, role: result.role, cached: result.cached };
   } catch (err: unknown) {
-    console.error("Failed to classify role:", err);
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const userFacing = toUserFacingMessage(err, "Failed to classify file role. Please try again.", "ai.classifyFileRoleAction");
+    return { ok: false, error: userFacing.message };
   }
 }

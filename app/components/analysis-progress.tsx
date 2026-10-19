@@ -9,6 +9,7 @@ import { rerunAnalysisAction } from "@/app/actions/analysis";
 import { BorderTrail } from "@/app/components/ui/border-trail";
 import { ClickSpark } from "@/app/components/ui/click-spark";
 import { SpotlightCard } from "@/app/components/ui/spotlight-card";
+import { toUserFacingMessage } from "@/lib/errors";
 
 const STAGES: Array<{ id: PipelineStage; label: string }> = [
   { id: "fetch", label: "fetch" },
@@ -143,7 +144,7 @@ export function AnalysisProgress({
     try {
       await rerunAnalysisAction(analysisId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toUserFacingMessage(err, "Failed to re-run analysis. Please try again.", "progress.handleRerun").message);
       setIsRerunning(false);
     }
   };

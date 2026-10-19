@@ -8,6 +8,7 @@ import { countCategories } from "@/lib/file-categories";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { AnalysisProgress } from "@/app/components/analysis-progress";
 import type { RouteItem } from "@/app/components/detail-pane";
+import { UserFacingError, logServerError } from "@/lib/errors";
 
 interface AnalysisPageProps {
   params: Promise<{ id: string }>;
@@ -130,11 +131,10 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   ]);
 
   if (filesError || edgesError || routesError || rolesError) {
-    throw new Error(
-      `Failed to load graph data: ${
-        filesError?.message ?? edgesError?.message ?? routesError?.message ?? rolesError?.message
-      }`
-    );
+    const errorDetails =
+      filesError?.message ?? edgesError?.message ?? routesError?.message ?? rolesError?.message;
+    logServerError("analysis.page.loadGraph", errorDetails);
+    throw new UserFacingError("Unable to load graph data for this analysis. Please try again.");
   }
 
   const fileIdToPath = new Map<string, string>();

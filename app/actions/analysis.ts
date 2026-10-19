@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { createClerkSupabaseClient, createAdminSupabaseClient, ensureOrganization } from "@/lib/supabase";
 import { parseRepoUrl } from "@/lib/pipeline/github";
 import { runAnalysis } from "@/lib/pipeline/run";
+import { toUserFacingMessage, UserFacingError, logServerError } from "@/lib/errors";
 
 // Match the dashboard’s stale-run threshold.
 const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
@@ -168,7 +169,7 @@ export async function submitRepoAction(
     name = parsed.name;
     canonicalUrl = parsed.canonicalUrl;
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: toUserFacingMessage(err, "Please enter a valid GitHub repository URL.", "actions.submitRepoAction.parse").message };
   }
 
   try {
@@ -183,7 +184,7 @@ export async function submitRepoAction(
     if (err && typeof err === "object" && "digest" in err) {
       throw err;
     }
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: toUserFacingMessage(err, "Unable to start repository analysis. Please try again.", "actions.submitRepoAction").message };
   }
 }
 
@@ -211,7 +212,7 @@ export async function submitHeroAction(
     name = parsed.name;
     canonicalUrl = parsed.canonicalUrl;
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: toUserFacingMessage(err, "Please enter a valid GitHub repository URL.", "actions.submitHeroAction.parse").message };
   }
 
   const { userId, orgId } = await auth();
@@ -236,7 +237,7 @@ export async function submitHeroAction(
     if (err && typeof err === "object" && "digest" in err) {
       throw err;
     }
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: toUserFacingMessage(err, "Unable to start repository analysis. Please try again.", "actions.submitHeroAction").message };
   }
 }
 
@@ -247,7 +248,7 @@ export async function submitHeroAction(
 export async function rerunAnalysisAction(analysisId: string): Promise<void | never> {
   const { orgId } = await auth();
   if (!orgId) {
-    throw new Error("Organization required.");
+    throw new UserFacingError("Organization required. Please select an organization.");
   }
 
   const supabase = await createClerkSupabaseClient();
@@ -259,12 +260,12 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
     .single();
 
   if (error || !analysis) {
-    throw new Error(`Analysis not found: ${error?.message}`);
+    throw new UserFacingError("Analysis not found or inaccessible within your organization.");
   }
 
   const project = analysis.project as { repo_url: string } | null;
   if (!project?.repo_url) {
-    throw new Error("Repository URL not found for analysis.");
+    throw new UserFacingError("Repository URL not found for analysis.");
   }
 
   await failStaleAnalysis(supabase, analysis);
@@ -286,7 +287,10 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
     .select("id")
     .maybeSingle();
 
-  if (resetError) throw new Error(`Failed to reset analysis: ${resetError.message}`);
+  if (resetError) {
+    logServerError("actions.rerunAnalysisAction.reset", resetError);
+    throw new UserFacingError("Failed to reset analysis. Please try again.");
+  }
   if (!reset) redirect(`/analysis/${analysisId}`);
 
   after(async () => {
@@ -300,7 +304,7 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
         forceRerun: true,
       });
     } catch (err) {
-      console.error("Pipeline re-run encountered error:", err);
+      logServerError("actions.rerunAnalysisAction.pipeline", err);
     }
   });
 
@@ -313,7 +317,7 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
 export async function reanalyseRepoAction(analysisId: string): Promise<void | never> {
   const { orgId } = await auth();
   if (!orgId) {
-    throw new Error("Organization required.");
+    throw new UserFacingError("Organization required. Please select an organization.");
   }
 
   const supabase = await createClerkSupabaseClient();
@@ -325,12 +329,12 @@ export async function reanalyseRepoAction(analysisId: string): Promise<void | ne
     .single();
 
   if (error || !analysis) {
-    throw new Error(`Analysis not found: ${error?.message}`);
+    throw new UserFacingError("Analysis not found or inaccessible within your organization.");
   }
 
   const project = analysis.project as { repo_url: string } | null;
   if (!project?.repo_url) {
-    throw new Error("Repository URL not found for analysis.");
+    throw new UserFacingError("Repository URL not found for analysis.");
   }
 
   const { data: reset, error: resetError } = await supabase
@@ -349,7 +353,10 @@ export async function reanalyseRepoAction(analysisId: string): Promise<void | ne
     .select("id")
     .maybeSingle();
 
-  if (resetError) throw new Error(`Failed to restart analysis: ${resetError.message}`);
+  if (resetError) {
+    logServerError("actions.reanalyseRepoAction.reset", resetError);
+    throw new UserFacingError("Failed to restart analysis. Please try again.");
+  }
   if (!reset) redirect(`/analysis/${analysisId}`);
 
   after(async () => {
@@ -363,7 +370,7 @@ export async function reanalyseRepoAction(analysisId: string): Promise<void | ne
         forceRerun: true,
       });
     } catch (err) {
-      console.error("Pipeline re-analysis encountered error:", err);
+      logServerError("actions.reanalyseRepoAction.pipeline", err);
     }
   });
 

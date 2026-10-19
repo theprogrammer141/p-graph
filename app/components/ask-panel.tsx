@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import type { SelectionTarget } from "./workspace-shell";
 import { ClickSpark } from "@/app/components/ui/click-spark";
 import { BorderTrail } from "@/app/components/ui/border-trail";
+import { toUserFacingMessage } from "@/lib/errors";
 
 export interface ToolCallItem {
   id: string;
@@ -97,7 +98,8 @@ export function AskPanel({
 
       if (!response.ok) {
         const errorJson = (await response.json().catch(() => ({}))) as { error?: string };
-        const errMsg = errorJson.error || `Request failed with status ${response.status}`;
+        const rawErr = errorJson.error || `Request failed with status ${response.status}`;
+        const errMsg = toUserFacingMessage(rawErr, "The assistant service is currently unavailable. Please try again.").message;
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMessageId
@@ -217,7 +219,8 @@ export function AskPanel({
                 )
               );
             } else if (eventType === "error") {
-              const errMsg = data.error || "An error occurred during agent execution.";
+              const rawErr = data.error || "An error occurred during agent execution.";
+              const errMsg = toUserFacingMessage(rawErr, "The AI agent encountered an issue while generating an answer. Please try again.").message;
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantMessageId
@@ -232,7 +235,11 @@ export function AskPanel({
         }
       }
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+      const errMsg = toUserFacingMessage(
+        err,
+        "Failed to communicate with assistant. Please try again.",
+        "askPanel.stream",
+      ).message;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantMessageId

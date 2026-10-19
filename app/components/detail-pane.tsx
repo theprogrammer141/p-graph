@@ -20,6 +20,7 @@ import { SpotlightCard } from "@/app/components/ui/spotlight-card";
 import { CountUp } from "@/app/components/ui/count-up";
 import { ClickSpark } from "@/app/components/ui/click-spark";
 import { BorderTrail } from "@/app/components/ui/border-trail";
+import { toUserFacingMessage } from "@/lib/errors";
 
 export interface RouteItem {
   readonly id?: string;
@@ -351,7 +352,7 @@ function ExplanationTab({
         }
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toUserFacingMessage(err, "Failed to explain selection. Please try again.", "detailPane.handleExplain").message);
     } finally {
       setLoading(false);
     }

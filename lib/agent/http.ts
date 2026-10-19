@@ -1,5 +1,6 @@
 import { extractAgentCredential } from "./credential";
 import { loadAnalysisGraph, type AnalysisGraph } from "./loader";
+import { toUserFacingMessage, isUserFacingError } from "@/lib/errors";
 
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +20,12 @@ export function agentJsonResponse(data: unknown, status = 200): Response {
 }
 
 export function agentErrorResponse(error: unknown, fallbackStatus = 500): Response {
-  const message = error instanceof Error ? error.message : String(error);
-  const lower = message.toLowerCase();
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const lower = rawMessage.toLowerCase();
 
   let status = fallbackStatus;
   if (
+    lower.includes("unauthorized") ||
     lower.includes("authorization") ||
     lower.includes("credential") ||
     lower.includes("expired") ||
@@ -32,11 +34,18 @@ export function agentErrorResponse(error: unknown, fallbackStatus = 500): Respon
     status = 401;
   } else if (lower.includes("not found") || lower.includes("does not exist")) {
     status = 404;
-  } else if (lower.includes("missing") || lower.includes("invalid")) {
+  } else if (lower.includes("missing") || lower.includes("invalid") || isUserFacingError(error)) {
     status = 400;
   }
 
-  return Response.json({ error: message }, { status, headers: CORS_HEADERS });
+  if (status >= 500) {
+    const userFacing = toUserFacingMessage(error, "Agent service encountered an error.", "agent.http");
+    return Response.json({ error: userFacing.message }, { status, headers: CORS_HEADERS });
+  }
+
+  // Client-side 4xx errors: safe to return specific user message without internal leak
+  const userFacing = toUserFacingMessage(error, "Invalid request.", "agent.http");
+  return Response.json({ error: userFacing.message }, { status, headers: CORS_HEADERS });
 }
 
 export async function authenticateAndLoadGraph(req: Request): Promise<AnalysisGraph> {

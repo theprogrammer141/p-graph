@@ -4,6 +4,7 @@ import { AnalysisForm } from "@/app/components/analysis-form";
 import { DashboardTable, type AnalysisItem } from "@/app/components/dashboard-table";
 import { LandingPage } from "@/app/components/landing/landing-page";
 import { parseRepoUrl } from "@/lib/pipeline/github";
+import { toUserFacingMessage } from "@/lib/errors";
 
 // The dashboard: analyses for the organization in the current session token.
 //
@@ -111,21 +112,29 @@ export default async function Home(props: {
 
       {error ? (
         // Loud, not swallowed: a failed query must never look like an empty list.
-        <div className="border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 rounded-xs p-4">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-            <span className="font-mono text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400 font-medium">
-              Query failed
-            </span>
-          </div>
-          <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
-            Couldn&apos;t load analyses from database.
-          </p>
-          <p className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-white/70 dark:bg-zinc-900/70 border border-rose-200/60 dark:border-rose-900/40 p-2 rounded-xs break-all">
-            {error.code ? `${error.code}: ` : ""}
-            {error.message}
-          </p>
-        </div>
+        (() => {
+          const userFacing = toUserFacingMessage(
+            error,
+            "Couldn't load analyses from database. Please refresh or try again in a few moments.",
+            "dashboard.loadAnalyses",
+          );
+          return (
+            <div className="border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 rounded-xs p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span className="font-mono text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400 font-medium">
+                  Query failed
+                </span>
+              </div>
+              <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                Couldn&apos;t load analyses from database.
+              </p>
+              <p className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-white/70 dark:bg-zinc-900/70 border border-rose-200/60 dark:border-rose-900/40 p-2 rounded-xs break-all">
+                {userFacing.message}
+              </p>
+            </div>
+          );
+        })()
       ) : (
         <DashboardTable initialAnalyses={(data ?? []) as unknown as AnalysisItem[]} />
       )}

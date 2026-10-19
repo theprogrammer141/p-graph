@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import * as tar from "tar";
+import { UserFacingError } from "@/lib/errors";
 
 const execFileAsync = promisify(execFile);
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -32,7 +33,7 @@ export interface ExtractedRepo {
 export function parseRepoUrl(rawUrl: string): ParsedRepo {
   const trimmed = rawUrl.trim();
   if (!trimmed) {
-    throw new Error("Repository URL cannot be empty.");
+    throw new UserFacingError("Repository URL cannot be empty.");
   }
 
   // Remove trailing slashes and .git suffix
@@ -65,7 +66,7 @@ export function parseRepoUrl(rawUrl: string): ParsedRepo {
     };
   }
 
-  throw new Error(`Invalid GitHub repository URL: "${rawUrl}". Expected format: https://github.com/owner/repo`);
+  throw new UserFacingError(`Invalid GitHub repository URL: "${rawUrl}". Expected format: https://github.com/owner/repo`);
 }
 
 /**
@@ -90,7 +91,7 @@ export async function fetchRepoCommitSha(owner: string, name: string): Promise<s
     }
 
     if (res.status === 404) {
-      throw new Error(`Repository ${owner}/${name} was not found or is private.`);
+      throw new UserFacingError(`Repository ${owner}/${name} was not found or is private.`);
     }
 
     // If rate-limited or other error, fallback to git ls-remote
@@ -112,12 +113,11 @@ export async function fetchRepoCommitSha(owner: string, name: string): Promise<s
     if (sha && sha.length >= 40) {
       return sha;
     }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Could not access repository ${owner}/${name}: ${message}`);
+  } catch {
+    throw new UserFacingError(`Could not access repository ${owner}/${name}. Ensure it is public and accessible.`);
   }
 
-  throw new Error(`Could not determine commit SHA for repository ${owner}/${name}.`);
+  throw new UserFacingError(`Could not determine commit SHA for repository ${owner}/${name}.`);
 }
 
 /**
@@ -150,7 +150,6 @@ export async function downloadAndExtractRepo(
     ];
 
     let downloaded = false;
-    let lastError = "";
 
     for (const url of downloadUrls) {
       try {
@@ -164,16 +163,16 @@ export async function downloadAndExtractRepo(
         if (res.ok) {
           if (Number(res.headers.get("content-length")) > MAX_ARCHIVE_BYTES) {
             await res.body?.cancel();
-            throw new Error("Repository archive exceeds the 100 MiB download limit.");
+            throw new UserFacingError("Repository archive exceeds the 100 MiB download limit.");
           }
-          if (!res.body) throw new Error("Repository archive response has no body.");
+          if (!res.body) throw new UserFacingError("Repository archive response has no body.");
 
           let downloadedBytes = 0;
           const byteLimit = new Transform({
             transform(chunk: Buffer, _encoding, callback) {
               downloadedBytes += chunk.length;
               if (downloadedBytes > MAX_ARCHIVE_BYTES) {
-                callback(new Error("Repository archive exceeds the 100 MiB download limit."));
+                callback(new UserFacingError("Repository archive exceeds the 100 MiB download limit."));
               } else {
                 callback(null, chunk);
               }
@@ -200,16 +199,15 @@ export async function downloadAndExtractRepo(
           downloaded = true;
           break;
         } else {
-          lastError = `HTTP ${res.status} from ${url}`;
           await res.body?.cancel();
         }
       } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
+        if (err instanceof UserFacingError) throw err;
       }
     }
 
     if (!downloaded) {
-      throw new Error(`Failed to download repository archive for ${owner}/${name} (${lastError}).`);
+      throw new UserFacingError(`Failed to download repository archive for ${owner}/${name}. Ensure the repository is public and accessible.`);
     }
 
     await fs.promises.mkdir(extractDir, { recursive: true });
@@ -223,7 +221,7 @@ export async function downloadAndExtractRepo(
         extractedBytes += entry.size;
         entryCount += 1;
         if (extractedBytes > MAX_EXTRACTED_BYTES || entryCount > MAX_ARCHIVE_ENTRIES) {
-          archiveCheck.abort(new Error("Repository archive exceeds extraction limits (500 MiB or 50,000 entries)."));
+          archiveCheck.abort(new UserFacingError("Repository archive exceeds extraction limits (500 MiB or 50,000 entries)."));
           return false;
         }
         return true;

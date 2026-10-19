@@ -8,6 +8,7 @@ import {
 } from "./github";
 import { storeAnalysisData } from "./store";
 import { invalidateAnalysisGraphCache } from "@/lib/agent/loader";
+import { toUserFacingMessage, logServerError } from "@/lib/errors";
 
 export type PipelineStage = "fetch" | "select" | "parse" | "store" | "complete" | "failed";
 
@@ -189,22 +190,34 @@ export async function runAnalysis({
       await extracted.cleanup();
     }
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    let fallbackStageMessage = "The analysis failed to complete.";
+    if (currentStage === "fetch") {
+      fallbackStageMessage = "The repository could not be found, is private, or could not be downloaded.";
+    } else if (currentStage === "select") {
+      fallbackStageMessage = "An error occurred while inspecting repository files.";
+    } else if (currentStage === "parse") {
+      fallbackStageMessage = "An error occurred while parsing repository source files.";
+    } else if (currentStage === "store") {
+      fallbackStageMessage = "Failed to store the parsed dependency graph. Please retry.";
+    }
+
+    const userFacing = toUserFacingMessage(err, fallbackStageMessage, `pipeline.${currentStage}`);
+    logServerError(`pipeline.runAnalysis [stage: ${currentStage}]`, err, userFacing.refId);
+
     const { error: failureWriteError } = await supabase
       .from("analyses")
       .update({
         status: "failed",
         stage: "failed",
         failed_stage: currentStage,
-        stage_message: `Failed during stage "${currentStage}": ${errorMsg}`,
-        error: errorMsg,
+        stage_message: userFacing.message,
+        error: userFacing.message,
         finished_at: new Date().toISOString(),
       })
       .eq("id", analysisId);
 
-    // Log rather than throw: the pipeline error is the one worth surfacing.
     if (failureWriteError) {
-      console.error(`Failed to record failure for analysis ${analysisId}:`, failureWriteError.message);
+      logServerError(`pipeline.failureWrite [analysis: ${analysisId}]`, failureWriteError);
     }
 
     throw err;
