@@ -6,7 +6,7 @@ import { wrapOpenAI } from "langsmith/wrappers";
  * Model name is part of the cache key: re-pinning invalidates only its own cache.
  */
 export const PINNED_MODEL =
-  process.env.AI_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+  process.env.AI_MODEL || "openai/gpt-oss-120b";
 
 /**
  * Checks whether LangSmith tracing is configured with valid environment variables.
@@ -32,7 +32,10 @@ export function getAIClient(): OpenAI {
   let apiKey: string;
   let baseURL: string | undefined;
 
-  if (process.env.OPENROUTER_API_KEY) {
+  if (process.env.GROQ_API_KEY) {
+    apiKey = process.env.GROQ_API_KEY;
+    baseURL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
+  } else if (process.env.OPENROUTER_API_KEY) {
     apiKey = process.env.OPENROUTER_API_KEY;
     baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
   } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL) {
@@ -40,7 +43,7 @@ export function getAIClient(): OpenAI {
     baseURL = process.env.OPENAI_BASE_URL;
   } else {
     throw new Error(
-      `Missing AI API key. Please set OPENROUTER_API_KEY in .env.local to access ${PINNED_MODEL}.`,
+      `Missing AI API key. Please set GROQ_API_KEY in .env.local to access ${PINNED_MODEL}.`,
     );
   }
 

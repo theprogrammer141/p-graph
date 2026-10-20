@@ -56,7 +56,7 @@ A dependency graph that is 90% accurate is worse than no graph at all, because d
 
 ### AI, Agents & Observability
 
-- **[OpenAI SDK](https://github.com/openai/openai-node)** configured with OpenRouter / pinned model endpoints (`nvidia/nemotron-3-ultra-550b-a55b:free`).
+- **[OpenAI SDK](https://github.com/openai/openai-node)** configured with Groq high-speed LPU inference / pinned model endpoints (`openai/gpt-oss-120b`).
 - **[LangSmith](https://smith.langchain.com/)** for full tracing, latency tracking, token usage, and cache-hit auditing.
 - **Managed Deep Agents Architecture** powering an autonomous repository QA agent with HMAC-signed scoped credentials and deterministic graph query tools.
 
@@ -120,7 +120,7 @@ Public GitHub URL
 - Accounts for:
   - [Clerk](https://clerk.com/) (Authentication & Organizations)
   - [Supabase](https://supabase.com/) (Database & Realtime)
-  - [OpenRouter](https://openrouter.ai/) or [OpenAI](https://platform.openai.com/) (AI model provider)
+  - [Groq](https://console.groq.com/) or [OpenAI](https://platform.openai.com/) (AI model provider)
   - [LangSmith](https://smith.langchain.com/) (Optional, for LLM observability and tracing)
 
 ---
@@ -155,8 +155,9 @@ Populate the required environment variables:
 | `NEXT_PUBLIC_SUPABASE_URL`                        | Supabase project URL (e.g. `https://your-project.supabase.co`).                     |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`            | Supabase anon/publishable key.                                                      |
 | `SUPABASE_SECRET_KEY`                             | Supabase service role key (for server-side pipeline writes & RLS bypass).           |
-| `OPENROUTER_API_KEY`                              | API key from OpenRouter (used for explanation models).                              |
-| `OPENROUTER_BASE_URL`                             | Optional, defaults to `https://openrouter.ai/api/v1`.                               |
+| `GROQ_API_KEY`                                    | API key from Groq Console (used for explanation and Ask agent models).              |
+| `GROQ_BASE_URL`                                   | Optional, defaults to `https://api.groq.com/openai/v1`.                             |
+| `AI_MODEL`                                        | Optional pinned model override (defaults to `openai/gpt-oss-120b`).                 |
 | `LANGSMITH_TRACING`                               | Set to `true` to enable LangSmith tracing.                                          |
 | `LANGSMITH_ENDPOINT`                              | LangSmith API endpoint (e.g. `https://api.smith.langchain.com` or APAC endpoint).   |
 | `LANGSMITH_PROJECT`                               | LangSmith project name (e.g. `p-graph`).                                            |
@@ -210,7 +211,7 @@ The conversational Ask agent runs as a standalone service in `sandbox/p-graph-ag
 cd sandbox/p-graph-agent
 
 # Configure environment
-cp .env.example .env # Set OPENROUTER_API_KEY, MODEL_NAME, and LANGSMITH keys
+cp .env.example .env # Set GROQ_API_KEY, MODEL_NAME, and LANGSMITH keys
 
 # Install agent dependencies
 npm install

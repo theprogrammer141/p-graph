@@ -8,16 +8,22 @@ export interface AgentCredentialPayload {
 }
 
 function getSigningKey(): string {
-  const secret =
-    process.env.AGENT_SIGNING_SECRET ||
-    process.env.CLERK_SECRET_KEY ||
-    process.env.SUPABASE_SECRET_KEY;
-  if (!secret) {
+  if (process.env.AGENT_SIGNING_SECRET) {
+    return process.env.AGENT_SIGNING_SECRET;
+  }
+
+  const fallback = process.env.CLERK_SECRET_KEY || process.env.SUPABASE_SECRET_KEY;
+  if (!fallback) {
     throw new Error(
-      "Missing server secret for signing agent credentials. Set AGENT_SIGNING_SECRET, CLERK_SECRET_KEY, or SUPABASE_SECRET_KEY."
+      "Missing server secret for signing agent credentials. Set AGENT_SIGNING_SECRET in environment variables."
     );
   }
-  return secret;
+
+  // Derive a distinct key with domain separation so master auth/database secret keys are never directly reused as HMAC keys
+  return crypto
+    .createHmac("sha256", fallback)
+    .update("pgraph:agent:credential:signing:key:v1")
+    .digest("hex");
 }
 
 function base64UrlEncode(str: string): string {
@@ -105,8 +111,11 @@ export function verifyAgentCredential(token: string): { analysisId: string; orgI
   }
 
   const now = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp !== "number" || now > payload.exp) {
-    throw new Error("Agent credential has expired.");
+  if (!Number.isFinite(payload.exp) || payload.exp <= 0 || now > payload.exp) {
+    throw new Error("Agent credential has expired or contains an invalid expiration.");
+  }
+  if (!Number.isFinite(payload.iat) || payload.iat <= 0 || payload.iat > now + 60) {
+    throw new Error("Agent credential issued-at timestamp is invalid or set in the future.");
   }
 
   if (!payload.analysisId || !payload.orgId) {

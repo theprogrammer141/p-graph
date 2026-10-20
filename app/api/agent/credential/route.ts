@@ -1,11 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { mintAgentCredential } from "@/lib/agent/credential";
-import { agentErrorResponse, agentJsonResponse, handleOptions } from "@/lib/agent/http";
-
-export async function OPTIONS() {
-  return handleOptions();
-}
+import { agentErrorResponse } from "@/lib/agent/http";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * Mints a short-lived signed credential for the requested analysis.
@@ -19,6 +16,14 @@ export async function POST(req: Request) {
       return agentErrorResponse(
         new Error("Unauthorized: Active organization required to mint agent credentials."),
         401
+      );
+    }
+
+    const rateCheck = checkRateLimit(`credential:${orgId}`, { limit: 10, windowMs: 60_000 });
+    if (!rateCheck.success) {
+      return agentErrorResponse(
+        new Error("Rate limit exceeded for minting credentials. Please wait a moment."),
+        429
       );
     }
 
@@ -50,7 +55,7 @@ export async function POST(req: Request) {
       expiresInSeconds: 600,
     });
 
-    return agentJsonResponse({
+    return Response.json({
       credential,
       expiresIn: 600,
       analysisId: analysis.id,
@@ -60,3 +65,4 @@ export async function POST(req: Request) {
     return agentErrorResponse(error);
   }
 }
+

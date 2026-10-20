@@ -19,8 +19,21 @@ export interface RunAgentParams {
   signal?: AbortSignal;
 }
 
-// In-memory conversation state for requests sharing a process instance
-export const inMemoryThreadStore = new Map<string, ChatHistoryItem[]>();
+// In-memory conversation state for requests sharing a process instance.
+// Scoped strictly by (orgId, analysisId, threadId) with TTL and size bounds to prevent cross-tenant leaks and memory exhaustion.
+const MAX_ACTIVE_THREADS = 1000;
+const THREAD_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface ThreadEntry {
+  turns: ChatHistoryItem[];
+  expiresAt: number;
+}
+
+export const inMemoryThreadStore = new Map<string, ThreadEntry>();
+
+export function getScopedThreadKey(orgId: string, analysisId: string, threadId: string): string {
+  return `${orgId}:${analysisId}:${threadId}`;
+}
 
 function extractThinkTags(text: string): { cleanText: string; thinkText: string } {
   const thinkMatches = text.match(/<think>([\s\S]*?)<\/think>/gi);
@@ -68,7 +81,11 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
           contextualMessage = `[Context: currently selected directory is '${selected.dir}']\n${userMessage}`;
         }
 
-        const priorTurns = history ?? inMemoryThreadStore.get(activeThreadId) ?? [];
+        const threadKey = getScopedThreadKey(graph.orgId, graph.analysisId, activeThreadId);
+        const cachedEntry = inMemoryThreadStore.get(threadKey);
+        const priorTurns =
+          history ??
+          (cachedEntry && cachedEntry.expiresAt > Date.now() ? cachedEntry.turns : []);
 
         const conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: "system", content: AGENT_SYSTEM_PROMPT },
@@ -234,12 +251,19 @@ export function runAgentStream(params: RunAgentParams): ReadableStream<Uint8Arra
           throw new Error("The model returned no answer text. Try asking again.");
         }
 
-        // Persist history for subsequent turns
-        inMemoryThreadStore.set(activeThreadId, [
-          ...priorTurns,
-          { role: "user", content: userMessage },
-          { role: "assistant", content: fullText },
-        ]);
+        // Persist history for subsequent turns with TTL and bounded eviction
+        if (inMemoryThreadStore.size >= MAX_ACTIVE_THREADS) {
+          const oldestKey = inMemoryThreadStore.keys().next().value;
+          if (oldestKey) inMemoryThreadStore.delete(oldestKey);
+        }
+        inMemoryThreadStore.set(threadKey, {
+          turns: [
+            ...priorTurns,
+            { role: "user", content: userMessage },
+            { role: "assistant", content: fullText },
+          ],
+          expiresAt: Date.now() + THREAD_TTL_MS,
+        });
 
         emit("done", { threadId: activeThreadId, fullText });
         controller.close();

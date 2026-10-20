@@ -7,6 +7,7 @@ import { createClerkSupabaseClient, createAdminSupabaseClient, ensureOrganizatio
 import { parseRepoUrl } from "@/lib/pipeline/github";
 import { runAnalysis } from "@/lib/pipeline/run";
 import { toUserFacingMessage, UserFacingError, logServerError } from "@/lib/errors";
+import { checkRateLimit, assertRateLimit } from "@/lib/rate-limit";
 
 // Match the dashboard’s stale-run threshold.
 const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
@@ -154,6 +155,11 @@ export async function submitRepoAction(
     return { error: "Organization required. Please select an organization." };
   }
 
+  const rateCheck = checkRateLimit(`analysis:${orgId}`, { limit: 5, windowMs: 60_000 });
+  if (!rateCheck.success) {
+    return { error: "Rate limit exceeded. You can only start up to 5 analysis runs per minute." };
+  }
+
   const rawUrl = formData.get("repoUrl");
   if (!rawUrl || typeof rawUrl !== "string") {
     return { error: "Please enter a GitHub repository URL." };
@@ -225,6 +231,11 @@ export async function submitHeroAction(
     redirect(`/?repoUrl=${encodeURIComponent(canonicalUrl)}`);
   }
 
+  const rateCheck = checkRateLimit(`analysis:${orgId}`, { limit: 5, windowMs: 60_000 });
+  if (!rateCheck.success) {
+    return { error: "Rate limit exceeded. You can only start up to 5 analysis runs per minute." };
+  }
+
   try {
     const analysisId = await createOrReuseAnalysis({
       canonicalUrl,
@@ -250,6 +261,8 @@ export async function rerunAnalysisAction(analysisId: string): Promise<void | ne
   if (!orgId) {
     throw new UserFacingError("Organization required. Please select an organization.");
   }
+
+  assertRateLimit(`rerun:${orgId}`, { limit: 5, windowMs: 60_000 }, "Rate limit exceeded. Please wait a moment before re-running.");
 
   const supabase = await createClerkSupabaseClient();
 
@@ -319,6 +332,8 @@ export async function reanalyseRepoAction(analysisId: string): Promise<void | ne
   if (!orgId) {
     throw new UserFacingError("Organization required. Please select an organization.");
   }
+
+  assertRateLimit(`reanalyse:${orgId}`, { limit: 5, windowMs: 60_000 }, "Rate limit exceeded. Please wait a moment before re-analysing.");
 
   const supabase = await createClerkSupabaseClient();
 

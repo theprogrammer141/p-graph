@@ -11,6 +11,7 @@ import {
 import { isTracingConfigured } from "@/lib/ai/client";
 import { checkFileStaleness } from "@/lib/ai/staleness";
 import { toUserFacingMessage, logServerError } from "@/lib/errors";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export interface ExplainActionResult {
   readonly ok: boolean;
@@ -50,6 +51,11 @@ export async function explainFileAction(params: {
     return { ok: false, error: "Authentication required." };
   }
 
+  const rateCheck = checkRateLimit(`explain:${orgId}`, { limit: 30, windowMs: 60_000 });
+  if (!rateCheck.success) {
+    return { ok: false, error: "Rate limit exceeded. Please wait a moment before requesting more explanations." };
+  }
+
   const supabase = await createClerkSupabaseClient();
 
   // 1. Fetch analysis and project details for commit SHA and repo metadata
@@ -60,7 +66,8 @@ export async function explainFileAction(params: {
     .single();
 
   if (analysisError || !analysis) {
-    return { ok: false, error: `Analysis not found: ${analysisError?.message}` };
+    const userFacing = toUserFacingMessage(analysisError, "Analysis not found or inaccessible.", "ai.explainFileAction.analysis");
+    return { ok: false, error: userFacing.message };
   }
 
   const project = analysis.project as { owner: string; name: string } | null;
@@ -74,7 +81,8 @@ export async function explainFileAction(params: {
     .single();
 
   if (fileError || !targetFile) {
-    return { ok: false, error: `File not found: ${fileError?.message}` };
+    const userFacing = toUserFacingMessage(fileError, "File not found in analysis.", "ai.explainFileAction.file");
+    return { ok: false, error: userFacing.message };
   }
 
   // 3. Fetch existing role if any
@@ -171,17 +179,26 @@ export async function explainFolderAction(params: {
     return { ok: false, error: "Authentication required." };
   }
 
+  const rateCheck = checkRateLimit(`explain:${orgId}`, { limit: 30, windowMs: 60_000 });
+  if (!rateCheck.success) {
+    return { ok: false, error: "Rate limit exceeded. Please wait a moment before requesting more explanations." };
+  }
+
   const supabase = await createClerkSupabaseClient();
+
+  // Cap folderFiles to 200 items to prevent oversized query parameters
+  const boundedFolderFiles = (folderFiles as string[]).slice(0, 200);
 
   // 1. Fetch file nodes in this folder
   const { data: filesData, error: filesError } = await supabase
     .from("files")
     .select("id, path, lines, sha256")
     .eq("analysis_id", analysisId)
-    .in("path", folderFiles as string[]);
+    .in("path", boundedFolderFiles);
 
   if (filesError || !filesData || filesData.length === 0) {
-    return { ok: false, error: `Folder files not found: ${filesError?.message}` };
+    const userFacing = toUserFacingMessage(filesError, "Folder files not found in analysis.", "ai.explainFolderAction.files");
+    return { ok: false, error: userFacing.message };
   }
 
   const fileIdSet = new Set(filesData.map((f) => f.id));

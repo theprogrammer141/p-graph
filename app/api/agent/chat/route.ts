@@ -1,13 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { mintAgentCredential } from "@/lib/agent/credential";
-import { agentErrorResponse, handleOptions, CORS_HEADERS } from "@/lib/agent/http";
+import { agentErrorResponse } from "@/lib/agent/http";
 import { loadAnalysisGraph } from "@/lib/agent/loader";
 import { runAgentStream, type ChatHistoryItem } from "@/lib/agent/runner";
-
-export async function OPTIONS() {
-  return handleOptions();
-}
+import { checkRateLimit } from "@/lib/rate-limit";
 
 function tryParseJson(str: string): unknown {
   try {
@@ -191,6 +188,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // Enforce sliding-window rate limit: max 20 chat requests per minute per organization
+    const rateCheck = checkRateLimit(`chat:${orgId}`, { limit: 20, windowMs: 60_000 });
+    if (!rateCheck.success) {
+      return agentErrorResponse(
+        new Error("Rate limit exceeded for agent questions. Please wait a moment before asking again."),
+        429
+      );
+    }
+
     const body = (await req.json().catch(() => ({}))) as {
       analysisId?: string;
       message?: string;
@@ -203,7 +209,7 @@ export async function POST(req: Request) {
     const userMessage = body?.message?.trim();
     const threadId = body?.threadId?.trim();
     const selected = body?.selected;
-    const history = body?.history;
+    const rawHistory = body?.history;
 
     if (!analysisId) {
       return agentErrorResponse(new Error("Missing parameter 'analysisId'."), 400);
@@ -211,6 +217,31 @@ export async function POST(req: Request) {
     if (!userMessage) {
       return agentErrorResponse(new Error("Missing parameter 'message'."), 400);
     }
+    if (userMessage.length > 2000) {
+      return agentErrorResponse(
+        new Error("Message exceeds the maximum limit of 2,000 characters."),
+        400
+      );
+    }
+
+    // Sanitize client-supplied history: cap to last 10 turns with strict schema validation
+    const history: ChatHistoryItem[] | undefined = Array.isArray(rawHistory)
+      ? rawHistory
+          .slice(-10)
+          .filter(
+            (item): item is ChatHistoryItem =>
+              Boolean(
+                item &&
+                  (item.role === "user" || item.role === "assistant") &&
+                  typeof item.content === "string" &&
+                  item.content.trim().length > 0
+              )
+          )
+          .map((item) => ({
+            role: item.role,
+            content: item.content.slice(0, 4000),
+          }))
+      : undefined;
 
     // Verify ownership through Supabase RLS with Clerk client
     const supabase = await createClerkSupabaseClient();
@@ -328,7 +359,6 @@ export async function POST(req: Request) {
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
-        ...CORS_HEADERS,
       },
     });
   } catch (error) {

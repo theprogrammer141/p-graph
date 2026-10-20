@@ -58,7 +58,7 @@ const SENSITIVE_PATTERNS = [
   /\b(PGRST\d{3}|42P\d{2}|23505|23503)\b/,
   // Auth / Keys / Environment
   /\b(jwt|bearer|signature|secret|token|apikey|api_key|password)\b/i,
-  /\b(NEXT_PUBLIC_|SUPABASE_|CLERK_|OPENAI_|OPENROUTER_|LANGSMITH_)\w*/,
+  /\b(NEXT_PUBLIC_|SUPABASE_|CLERK_|OPENAI_|OPENROUTER_|GROQ_|LANGSMITH_)\w*/,
   // System / Filesystem paths
   /(?:\/[a-zA-Z0-9_.-]+){3,}/,
   // Trace / Stack signatures
