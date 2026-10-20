@@ -198,7 +198,10 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
 
   if (analyses.length === 0) {
     return (
-      <SpotlightCard className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xs px-4 py-12 text-center bg-white dark:bg-zinc-950">
+      <SpotlightCard
+        data-testid="empty-analyses-state"
+        className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xs px-4 py-12 text-center bg-white dark:bg-zinc-950"
+      >
         <div className="font-mono text-[11px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
           <DecryptedText text="Empty Workspace" speed={40} />
         </div>
@@ -211,6 +214,7 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
 
   return (
     <SpotlightCard
+      data-testid="analyses-table"
       className="p-0 border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-950 overflow-hidden shadow-2xs"
       spotlightSize={400}
     >
@@ -229,12 +233,14 @@ export function DashboardTable({ initialAnalyses }: DashboardTableProps) {
             return (
               <tr
                 key={a.id}
+                data-testid={`analysis-row-${a.id}`}
                 className="border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 align-top hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
               >
                 <td className="py-2.5 px-3 font-mono">
                   {project ? (
                     <Link
                       href={`/analysis/${a.id}`}
+                      data-testid="analysis-link"
                       className="text-zinc-900 dark:text-zinc-100 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1 group"
                     >
                       <DecryptedText

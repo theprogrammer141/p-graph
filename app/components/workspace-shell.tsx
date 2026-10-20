@@ -172,7 +172,10 @@ export function WorkspaceShell({
   return (
     <div className="flex-1 w-full h-[calc(100vh-2.75rem)] flex overflow-hidden bg-background text-foreground text-xs select-none">
       {/* Left rail: narrow column listing categories of file */}
-      <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950 flex flex-col overflow-hidden">
+      <aside
+        data-testid="categories-sidebar"
+        className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950 flex flex-col overflow-hidden"
+      >
         <div className="px-3 h-9 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
           <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-medium">
             Categories
@@ -181,6 +184,7 @@ export function WorkspaceShell({
             <button
               type="button"
               onClick={() => setSelectedCategory(null)}
+              data-testid="reset-category-btn"
               className="font-mono text-[10px] text-(--pg-accent) hover:underline cursor-pointer"
             >
               Reset
@@ -200,6 +204,7 @@ export function WorkspaceShell({
                 type="button"
                 key={cat.id}
                 onClick={() => handleToggleCategory(cat.label)}
+                data-testid={`category-btn-${cat.label.toLowerCase()}`}
                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded-xs text-xs font-mono cursor-pointer transition-colors ${
                   isCatActive
                     ? "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 font-medium ring-1 ring-(--pg-accent)"
@@ -225,7 +230,10 @@ export function WorkspaceShell({
       </aside>
 
       {/* Middle column: canvas / map filling the middle */}
-      <main className="flex-1 relative overflow-hidden bg-white dark:bg-zinc-950 flex flex-col">
+      <main
+        data-testid="graph-canvas-container"
+        className="flex-1 relative overflow-hidden bg-white dark:bg-zinc-950 flex flex-col"
+      >
         <div className="px-3 h-9 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/40 dark:bg-zinc-900/20">
           <div className="flex items-center gap-2 font-mono text-[11px]">
             <span className="font-medium text-zinc-800 dark:text-zinc-200">
@@ -247,6 +255,7 @@ export function WorkspaceShell({
                   type="button"
                   onClick={handleReanalyse}
                   disabled={isReanalysing}
+                  data-testid="reanalyse-btn"
                   className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors active:scale-95"
                   title="Re-analyse this repository"
                 >

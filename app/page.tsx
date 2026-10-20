@@ -43,7 +43,10 @@ export default async function Home(props: {
   if (!orgId) {
     return (
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-950 p-5 max-w-xl">
+        <div
+          data-testid="org-required-banner"
+          className="border border-zinc-200 dark:border-zinc-800 rounded-xs bg-white dark:bg-zinc-950 p-5 max-w-xl"
+        >
           <div className="flex items-center gap-2 mb-2">
             <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
             <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">
@@ -119,7 +122,10 @@ export default async function Home(props: {
             "dashboard.loadAnalyses",
           );
           return (
-            <div className="border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 rounded-xs p-4">
+            <div
+              data-testid="dashboard-query-failed"
+              className="border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 rounded-xs p-4"
+            >
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 <span className="font-mono text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400 font-medium">

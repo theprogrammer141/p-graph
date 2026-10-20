@@ -56,12 +56,18 @@ export default async function RootLayout({
                 {!userId ? (
                   <div className="flex items-center gap-2">
                     <SignInButton mode="modal">
-                      <button className="px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-50 transition-colors cursor-pointer">
+                      <button
+                        data-testid="header-sign-in-btn"
+                        className="px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-50 transition-colors cursor-pointer"
+                      >
                         Sign In
                       </button>
                     </SignInButton>
                     <SignUpButton mode="modal">
-                      <button className="px-2.5 py-1 text-xs font-medium bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 rounded-xs hover:opacity-90 transition-opacity cursor-pointer">
+                      <button
+                        data-testid="header-sign-up-btn"
+                        className="px-2.5 py-1 text-xs font-medium bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 rounded-xs hover:opacity-90 transition-opacity cursor-pointer"
+                      >
                         Sign Up
                       </button>
                     </SignUpButton>

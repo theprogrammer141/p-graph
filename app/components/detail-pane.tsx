@@ -71,13 +71,17 @@ export function DetailPane({
   };
 
   return (
-    <aside className="w-80 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950 flex flex-col overflow-hidden text-xs select-none">
+    <aside
+      data-testid="detail-pane"
+      className="w-80 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950 flex flex-col overflow-hidden text-xs select-none"
+    >
       {/* Top bar switching between Overview and Ask */}
       <div className="h-9 px-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/40 dark:bg-zinc-900/20">
         <div className="flex items-center gap-1 font-mono text-[10px]">
           <button
             type="button"
             onClick={() => setPaneMode("overview")}
+            data-testid="detail-tab-overview"
             className={`px-2.5 py-1 rounded-xs font-medium cursor-pointer transition-colors ${
               paneMode === "overview"
                 ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700"
@@ -89,6 +93,7 @@ export function DetailPane({
           <button
             type="button"
             onClick={() => setPaneMode("ask")}
+            data-testid="detail-tab-ask"
             className={`px-2.5 py-1 rounded-xs font-medium cursor-pointer transition-colors ${
               paneMode === "ask"
                 ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700"
@@ -103,6 +108,7 @@ export function DetailPane({
           <button
             type="button"
             onClick={onDeselect}
+            data-testid="detail-deselect-btn"
             title="Deselect (return to repository summary)"
             className="px-1.5 py-0.5 rounded-xs font-mono text-[10px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 cursor-pointer"
           >
@@ -126,6 +132,7 @@ export function DetailPane({
               <button
                 type="button"
                 onClick={() => onTabChange("structure")}
+                data-testid="detail-tab-structure"
                 className={`relative z-10 px-2 py-0.5 font-medium cursor-pointer transition-colors ${
                   activeTab === "structure"
                     ? "text-zinc-900 dark:text-zinc-100"
@@ -137,6 +144,7 @@ export function DetailPane({
               <button
                 type="button"
                 onClick={() => onTabChange("explanation")}
+                data-testid="detail-tab-explanation"
                 className={`relative z-10 px-2 py-0.5 font-medium cursor-pointer transition-colors ${
                   activeTab === "explanation"
                     ? "text-zinc-900 dark:text-zinc-100"

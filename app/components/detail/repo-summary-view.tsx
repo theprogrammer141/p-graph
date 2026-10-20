@@ -29,7 +29,7 @@ export function RepoSummaryView({
   isReanalysing?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div data-testid="repo-summary-view" className="flex flex-col gap-3 p-3">
       {/* Repository identity & framework */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -41,6 +41,7 @@ export function RepoSummaryView({
               type="button"
               onClick={onReanalyse}
               disabled={isReanalysing}
+              data-testid="repo-summary-reanalyse-btn"
               className="px-2 py-0.5 rounded-xs border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-mono text-[10px] cursor-pointer disabled:opacity-50 transition-colors shrink-0"
               title="Re-analyse this repository"
             >

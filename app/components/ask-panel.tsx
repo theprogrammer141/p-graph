@@ -318,7 +318,11 @@ export function AskPanel({
       )}
 
       {/* Messages Scroll Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
+      <div
+        ref={scrollRef}
+        data-testid="ask-panel-chat"
+        className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin"
+      >
         {messages.length === 0 ? (
           <div className="h-full flex flex-col justify-center items-center text-center p-4 space-y-3">
             <div className="font-mono text-zinc-400 dark:text-zinc-500 text-[11px]">
@@ -332,6 +336,7 @@ export function AskPanel({
               <button
                 type="button"
                 onClick={() => handleSend("Where is authentication handled?")}
+                data-testid="ask-suggestion-btn"
                 className="w-full text-left p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono text-[10px] transition-colors cursor-pointer"
               >
                 Where is authentication handled?
@@ -339,6 +344,7 @@ export function AskPanel({
               <button
                 type="button"
                 onClick={() => handleSend("What are the registered routes?")}
+                data-testid="ask-suggestion-btn"
                 className="w-full text-left p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono text-[10px] transition-colors cursor-pointer"
               >
                 What are the registered routes?
@@ -346,6 +352,7 @@ export function AskPanel({
               <button
                 type="button"
                 onClick={() => handleSend("What are the key starting points?")}
+                data-testid="ask-suggestion-btn"
                 className="w-full text-left p-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono text-[10px] transition-colors cursor-pointer"
               >
                 What are the key starting points?
@@ -357,7 +364,10 @@ export function AskPanel({
             <div key={m.id} className="space-y-1.5 animate-[fadeIn_0.2s_ease-out]">
               {m.role === "user" ? (
                 <div className="flex justify-end">
-                  <div className="max-w-[85%] px-2.5 py-1.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-sans text-xs leading-relaxed whitespace-pre-wrap">
+                  <div
+                    data-testid="ask-user-message"
+                    className="max-w-[85%] px-2.5 py-1.5 rounded-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-sans text-xs leading-relaxed whitespace-pre-wrap"
+                  >
                     {m.content}
                   </div>
                 </div>
@@ -414,7 +424,10 @@ export function AskPanel({
 
                   {/* Assistant response body */}
                   {m.content ? (
-                    <div className="px-2.5 py-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-zinc-900 dark:text-zinc-100 font-sans text-xs leading-relaxed whitespace-pre-wrap selection:bg-zinc-200 dark:selection:bg-zinc-700">
+                    <div
+                      data-testid="ask-assistant-message"
+                      className="px-2.5 py-2 rounded-xs border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-zinc-900 dark:text-zinc-100 font-sans text-xs leading-relaxed whitespace-pre-wrap selection:bg-zinc-200 dark:selection:bg-zinc-700"
+                    >
                       {renderFormattedMessage(m.content, onSelectFile)}
                     </div>
                   ) : m.isStreaming ? (
@@ -429,7 +442,10 @@ export function AskPanel({
                   ) : null}
 
                   {m.error && (
-                    <div className="px-2.5 py-1.5 rounded-xs border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 font-mono text-[10px]">
+                    <div
+                      data-testid="ask-error-message"
+                      className="px-2.5 py-1.5 rounded-xs border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 font-mono text-[10px]"
+                    >
                       {m.error}
                     </div>
                   )}
@@ -452,6 +468,7 @@ export function AskPanel({
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
+            data-testid="ask-input"
             placeholder={isLoading ? "Agent working..." : "Ask repository question (Enter)..."}
             className="w-full resize-none bg-transparent px-2.5 py-2 text-xs font-sans text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none max-h-24 scrollbar-thin"
           />
@@ -463,6 +480,7 @@ export function AskPanel({
               type="button"
               onClick={() => handleSend()}
               disabled={isLoading || !inputValue.trim()}
+              data-testid="ask-submit-btn"
               className="mr-1.5 px-2 py-1 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-mono text-[10px] font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.97] cursor-pointer shrink-0 transition-all"
             >
               Ask

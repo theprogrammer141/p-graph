@@ -24,7 +24,10 @@ export function CoverageBanner({ coverage }: CoverageBannerProps) {
 
   if (collapsed) {
     return (
-      <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-1 flex items-center justify-between text-[11px] font-mono text-amber-700 dark:text-amber-400 shrink-0">
+      <div
+        data-testid="coverage-banner"
+        className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-1 flex items-center justify-between text-[11px] font-mono text-amber-700 dark:text-amber-400 shrink-0"
+      >
         <span className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           Partial graph: {coveragePercent}% coverage
@@ -32,6 +35,7 @@ export function CoverageBanner({ coverage }: CoverageBannerProps) {
         <button
           type="button"
           onClick={() => setCollapsed(false)}
+          data-testid="coverage-banner-toggle"
           className="hover:underline text-[10px] cursor-pointer"
         >
           expand
@@ -41,7 +45,10 @@ export function CoverageBanner({ coverage }: CoverageBannerProps) {
   }
 
   return (
-    <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-2 text-[11px] font-mono text-amber-800 dark:text-amber-300 shrink-0 flex items-start justify-between">
+    <div
+      data-testid="coverage-banner"
+      className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-2 text-[11px] font-mono text-amber-800 dark:text-amber-300 shrink-0 flex items-start justify-between"
+    >
       <div className="space-y-0.5">
         <div className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -56,6 +63,7 @@ export function CoverageBanner({ coverage }: CoverageBannerProps) {
       <button
         type="button"
         onClick={() => setCollapsed(true)}
+        data-testid="coverage-banner-toggle"
         className="text-amber-700 dark:text-amber-400 hover:underline text-[10px] cursor-pointer ml-4 shrink-0"
       >
         collapse

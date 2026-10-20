@@ -151,7 +151,11 @@ export function AnalysisProgress({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-950/50 text-xs">
-      <SpotlightCard className="relative overflow-hidden w-full max-w-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xs shadow-2xs p-5" spotlightSize={350}>
+      <SpotlightCard
+        data-testid="analysis-progress-card"
+        className="relative overflow-hidden w-full max-w-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xs shadow-2xs p-5"
+        spotlightSize={350}
+      >
         {status !== "failed" && status !== "complete" && (
           <BorderTrail size={25} duration={3} color="rgba(37, 99, 235, 0.7)" />
         )}
@@ -167,13 +171,16 @@ export function AnalysisProgress({
               <span className="text-zinc-400 text-[10px]">↗</span>
             </a>
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          <span
+            data-testid="analysis-status"
+            className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500"
+          >
             {status}
           </span>
         </div>
 
         {status === "failed" ? (
-          <div>
+          <div data-testid="analysis-failed-view">
             <div className="mb-3 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 rounded-xs">
               <div className="flex items-center gap-1.5 font-mono text-[11px] text-rose-700 dark:text-rose-400 font-medium mb-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
@@ -187,6 +194,7 @@ export function AnalysisProgress({
               <button
                 onClick={handleRerun}
                 disabled={isRerunning}
+                data-testid="analysis-rerun-btn"
                 className="w-full py-1.5 px-3 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 font-mono text-[11px] font-medium rounded-xs hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isRerunning ? "Re-running..." : "Re-run analysis"}
@@ -204,7 +212,7 @@ export function AnalysisProgress({
                 }}
               />
             </div>
-            <div className="space-y-2 mb-4">
+            <div data-testid="analysis-stepper" className="space-y-2 mb-4">
               {STAGES.map((s, idx) => {
                 const isPast = currentIdx > idx;
                 const isCurrent = currentIdx === idx;
@@ -241,7 +249,10 @@ export function AnalysisProgress({
               })}
             </div>
 
-            <div className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2.5 rounded-xs leading-relaxed wrap-break-word">
+            <div
+              data-testid="analysis-progress-message"
+              className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2.5 rounded-xs leading-relaxed wrap-break-word"
+            >
               {message}
             </div>
           </div>

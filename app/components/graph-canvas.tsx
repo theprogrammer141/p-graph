@@ -124,6 +124,7 @@ const FoldedNode = memo(function FoldedNode({ data }: NodeProps<FoldedFlowNode>)
       onClick={() => open(model.id)}
       onMouseEnter={() => hover(model.id)}
       onMouseLeave={() => hover(null)}
+      data-testid={`folded-node-${model.id}`}
       title={`${model.id}\n${model.fileCount} files · in ${model.stats.fanIn} · out ${model.stats.fanOut}${
         selectedCategory ? `\n${matchCount} matching ${selectedCategory}` : ""
       }`}
@@ -172,6 +173,7 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
 
   return (
     <div
+      data-testid={`panel-node-${model.id}`}
       style={{ width: model.width, height: model.height, opacity: panelLit ? 1 : 0.25 }}
       className={`pointer-events-auto rounded-xs border bg-white dark:bg-zinc-900 overflow-hidden flex flex-col transition-[border-color,box-shadow,opacity] ${
         isSelectedFolder
@@ -213,6 +215,7 @@ const PanelNode = memo(function PanelNode({ data }: NodeProps<PanelFlowNode>) {
           return (
             <div
               key={row.id}
+              data-testid={`file-row-${row.id}`}
               style={{ height: ROW_H, opacity: isRowLit ? 1 : 0.25 }}
               onClick={(e) => {
                 if (row.kind !== "file") return;

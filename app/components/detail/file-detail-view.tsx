@@ -70,10 +70,13 @@ export function FileDetailView({
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div data-testid="file-detail-view" className="flex flex-col gap-3 p-3">
       {/* File header */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
-        <div className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 break-all select-text">
+        <div
+          data-testid="file-detail-path"
+          className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 break-all select-text"
+        >
           {detail.path}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[10px]">

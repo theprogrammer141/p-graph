@@ -165,7 +165,7 @@ export function ExplanationTab({
   };
 
   return (
-    <div className="p-3 flex flex-col gap-3 font-mono text-[11px]">
+    <div data-testid="explanation-tab-view" className="p-3 flex flex-col gap-3 font-mono text-[11px]">
       {/* Target header */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2 min-w-0">
@@ -322,6 +322,7 @@ export function ExplanationTab({
                 <button
                   type="button"
                   onClick={handleExplain}
+                  data-testid="explanation-explain-btn"
                   className="w-full py-1.5 px-3 rounded-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium text-xs hover:opacity-90 active:scale-[0.98] transition-transform cursor-pointer shadow-xs"
                 >
                   {selection.kind === "folder" ? "Explain Folder" : "Explain File"}
@@ -334,7 +335,7 @@ export function ExplanationTab({
 
       {/* Rendered explanation prose */}
       {cached && !loading && (
-        <div className="flex flex-col gap-3 animate-fade-in">
+        <div data-testid="explanation-content" className="flex flex-col gap-3 animate-fade-in">
           <SpotlightCard className="p-3 bg-white dark:bg-zinc-900/40" spotlightSize={300}>
             <ExplanationRenderer
               content={cached.content}

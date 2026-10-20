@@ -36,6 +36,7 @@ export function HeroForm({ initialRepoUrl = "" }: { initialRepoUrl?: string }) {
             onBlur={() => setIsFocused(false)}
             onChange={(e) => setValue(e.target.value)}
             placeholder="https://github.com/owner/repository"
+            data-testid="hero-repo-input"
             className="w-full px-3.5 py-2.5 font-mono text-xs sm:text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-hidden focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 transition-colors shadow-xs"
           />
           {(isFocused || isPending) && (
@@ -46,6 +47,7 @@ export function HeroForm({ initialRepoUrl = "" }: { initialRepoUrl?: string }) {
           <button
             type="submit"
             disabled={isPending}
+            data-testid="hero-submit-btn"
             className="w-full sm:w-auto px-5 py-2.5 font-mono text-xs sm:text-sm font-semibold bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 rounded-xs hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shrink-0"
           >
             {isPending ? "Starting..." : "Analyse"}
@@ -54,7 +56,10 @@ export function HeroForm({ initialRepoUrl = "" }: { initialRepoUrl?: string }) {
       </form>
 
       {state?.error && (
-        <div className="mt-2.5 font-mono text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 px-3 py-1.5 rounded-xs">
+        <div
+          data-testid="hero-form-error"
+          className="mt-2.5 font-mono text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 px-3 py-1.5 rounded-xs"
+        >
           {state.error}
         </div>
       )}

@@ -21,6 +21,7 @@ export function ThemeSwitcher() {
     <div className="flex items-center gap-0.5 border border-zinc-200 dark:border-zinc-800 p-0.5 rounded-xs bg-zinc-50 dark:bg-zinc-900">
       <button
         onClick={() => setTheme("light")}
+        data-testid="theme-light-btn"
         className={`p-1 rounded-xs transition-colors ${
           theme === "light"
             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs"
@@ -32,6 +33,7 @@ export function ThemeSwitcher() {
       </button>
       <button
         onClick={() => setTheme("system")}
+        data-testid="theme-system-btn"
         className={`p-1 rounded-xs transition-colors ${
           theme === "system"
             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs"
@@ -43,6 +45,7 @@ export function ThemeSwitcher() {
       </button>
       <button
         onClick={() => setTheme("dark")}
+        data-testid="theme-dark-btn"
         className={`p-1 rounded-xs transition-colors ${
           theme === "dark"
             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs"
