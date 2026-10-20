@@ -162,16 +162,6 @@ export function computeFolderCacheKey(
 }
 
 /**
- * Computes a deterministic cache key for AI role classification.
- */
-export function computeRoleCacheKey(model: string, sha256: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(`v1:classify_role:${model}:${sha256}`)
-    .digest("hex");
-}
-
-/**
  * Safely extracts assistant message content from an AI completion,
  * throwing descriptive errors on upstream/provider failures.
  */

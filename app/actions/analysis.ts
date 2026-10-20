@@ -49,7 +49,7 @@ export interface ActionState {
  * Finds an existing analysis or registers the project and creates an initial row,
  * scheduling the pipeline run in the background. Returns the analysis ID.
  */
-export async function createOrReuseAnalysis({
+async function createOrReuseAnalysis({
   canonicalUrl,
   owner,
   name,
@@ -141,6 +141,31 @@ export async function createOrReuseAnalysis({
   return analysisId;
 }
 
+function extractValidatedRepo(
+  formData: FormData,
+  context: string,
+): { success: true; owner: string; name: string; canonicalUrl: string } | { success: false; error: string } {
+  const rawUrl = formData.get("repoUrl");
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return { success: false, error: "Please enter a GitHub repository URL." };
+  }
+
+  try {
+    const parsed = parseRepoUrl(rawUrl);
+    return {
+      success: true,
+      owner: parsed.owner,
+      name: parsed.name,
+      canonicalUrl: parsed.canonicalUrl,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: toUserFacingMessage(err, "Please enter a valid GitHub repository URL.", context).message,
+    };
+  }
+}
+
 /**
  * Validates a repository submission, reuses an existing analysis when possible,
  * or schedules a background run and redirects to its progress page.
@@ -160,29 +185,16 @@ export async function submitRepoAction(
     return { error: "Rate limit exceeded. You can only start up to 5 analysis runs per minute." };
   }
 
-  const rawUrl = formData.get("repoUrl");
-  if (!rawUrl || typeof rawUrl !== "string") {
-    return { error: "Please enter a GitHub repository URL." };
-  }
-
-  let owner: string;
-  let name: string;
-  let canonicalUrl: string;
-
-  try {
-    const parsed = parseRepoUrl(rawUrl);
-    owner = parsed.owner;
-    name = parsed.name;
-    canonicalUrl = parsed.canonicalUrl;
-  } catch (err: unknown) {
-    return { error: toUserFacingMessage(err, "Please enter a valid GitHub repository URL.", "actions.submitRepoAction.parse").message };
+  const repo = extractValidatedRepo(formData, "actions.submitRepoAction.parse");
+  if (!repo.success) {
+    return { error: repo.error };
   }
 
   try {
     const analysisId = await createOrReuseAnalysis({
-      canonicalUrl,
-      owner,
-      name,
+      canonicalUrl: repo.canonicalUrl,
+      owner: repo.owner,
+      name: repo.name,
       orgId,
     });
     redirect(`/analysis/${analysisId}`);
@@ -203,32 +215,19 @@ export async function submitHeroAction(
   _prevState: ActionState | null,
   formData: FormData,
 ): Promise<ActionState | never> {
-  const rawUrl = formData.get("repoUrl");
-  if (!rawUrl || typeof rawUrl !== "string") {
-    return { error: "Please enter a GitHub repository URL." };
-  }
-
-  let owner: string;
-  let name: string;
-  let canonicalUrl: string;
-
-  try {
-    const parsed = parseRepoUrl(rawUrl);
-    owner = parsed.owner;
-    name = parsed.name;
-    canonicalUrl = parsed.canonicalUrl;
-  } catch (err: unknown) {
-    return { error: toUserFacingMessage(err, "Please enter a valid GitHub repository URL.", "actions.submitHeroAction.parse").message };
+  const repo = extractValidatedRepo(formData, "actions.submitHeroAction.parse");
+  if (!repo.success) {
+    return { error: repo.error };
   }
 
   const { userId, orgId } = await auth();
   if (!userId) {
-    const returnUrl = `/?repoUrl=${encodeURIComponent(canonicalUrl)}`;
+    const returnUrl = `/?repoUrl=${encodeURIComponent(repo.canonicalUrl)}`;
     redirect(`/sign-in?redirect_url=${encodeURIComponent(returnUrl)}`);
   }
 
   if (!orgId) {
-    redirect(`/?repoUrl=${encodeURIComponent(canonicalUrl)}`);
+    redirect(`/?repoUrl=${encodeURIComponent(repo.canonicalUrl)}`);
   }
 
   const rateCheck = checkRateLimit(`analysis:${orgId}`, { limit: 5, windowMs: 60_000 });
@@ -238,9 +237,9 @@ export async function submitHeroAction(
 
   try {
     const analysisId = await createOrReuseAnalysis({
-      canonicalUrl,
-      owner,
-      name,
+      canonicalUrl: repo.canonicalUrl,
+      owner: repo.owner,
+      name: repo.name,
       orgId,
     });
     redirect(`/analysis/${analysisId}`);

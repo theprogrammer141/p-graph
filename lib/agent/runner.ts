@@ -29,9 +29,9 @@ interface ThreadEntry {
   expiresAt: number;
 }
 
-export const inMemoryThreadStore = new Map<string, ThreadEntry>();
+const inMemoryThreadStore = new Map<string, ThreadEntry>();
 
-export function getScopedThreadKey(orgId: string, analysisId: string, threadId: string): string {
+function getScopedThreadKey(orgId: string, analysisId: string, threadId: string): string {
   return `${orgId}:${analysisId}:${threadId}`;
 }
 

@@ -70,7 +70,7 @@ export function transitiveWalk(
  * Iterative elementary cycle detection.
  * Avoids recursion entirely to prevent blowing the call stack on large repositories.
  */
-export function detectCyclesIterative(
+function detectCyclesIterative(
   edges: readonly Edge[],
   maxCycles = 50
 ): string[][] {
@@ -139,7 +139,7 @@ export function detectCyclesIterative(
  * Pages, routes, layouts, middleware and configs are reached by the framework
  * and must not be marked as unused or orphan.
  */
-export function isFrameworkReached(filePath: string): boolean {
+function isFrameworkReached(filePath: string): boolean {
   const norm = filePath.replace(/\\/g, "/");
 
   // Middleware and Next 16 proxy convention

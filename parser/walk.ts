@@ -51,7 +51,7 @@ export function isSourceFile(name: string): boolean {
   return SOURCE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
-export function toPosix(p: string): string {
+function toPosix(p: string): string {
   return p.split(path.sep).join("/");
 }
 

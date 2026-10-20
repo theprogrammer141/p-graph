@@ -30,7 +30,7 @@ export function isUserFacingError(error: unknown): error is UserFacingError {
  * Generates a short, opaque correlation ID for tracking server-side errors without leaking details.
  * Universal across browser and Node.js environments.
  */
-export function generateErrorRef(): string {
+function generateErrorRef(): string {
   try {
     if (typeof globalThis.crypto?.randomUUID === "function") {
       return globalThis.crypto.randomUUID().slice(0, 6);
@@ -69,7 +69,7 @@ const SENSITIVE_PATTERNS = [
 /**
  * Tests whether an error string contains sensitive technical details that should not be shown.
  */
-export function containsSensitiveInfo(message: string): boolean {
+function containsSensitiveInfo(message: string): boolean {
   return SENSITIVE_PATTERNS.some((pattern) => pattern.test(message));
 }
 

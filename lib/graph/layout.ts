@@ -25,7 +25,7 @@ export const ROW_H = 18;
 const MAX_ROWS = 14;
 const ROW_EXTRAS_W = 46; // swatch, gap and the fan-in figure
 
-export const ROOT_LABEL = "(root)";
+const ROOT_LABEL = "(root)";
 
 export type Row =
   | { kind: "file"; id: string; path: string; label: string; fanIn: number; role?: string }
@@ -89,7 +89,7 @@ export const handleOut = (rowId?: string) => (rowId === undefined ? "out" : `out
 /** The row a handle belongs to, or null for a folded node's handle. */
 export const rowOfHandle = (handle: string) => (handle.length > 3 ? handle.slice(handle.indexOf(":") + 1) : null);
 
-export function foldedHeight(fanIn: number): number {
+function foldedHeight(fanIn: number): number {
   return Math.round(FOLDED_BASE_H + FAN_IN_SCALE * Math.log2(1 + fanIn));
 }
 

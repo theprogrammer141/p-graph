@@ -1,6 +1,8 @@
 // Pure in-memory sliding window rate limiter.
 // Bounds memory consumption by automatically purging expired entries.
 
+import { UserFacingError } from "./errors";
+
 interface RateLimitOptions {
   /** Maximum number of allowed requests in the time window. */
   limit: number;
@@ -63,8 +65,6 @@ export function checkRateLimit(
 /**
  * Throws a UserFacingError if the rate limit is exceeded for the key.
  */
-import { UserFacingError } from "./errors";
-
 export function assertRateLimit(
   key: string,
   options: RateLimitOptions,

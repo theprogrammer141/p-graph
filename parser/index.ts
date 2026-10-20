@@ -2,10 +2,9 @@ import { Project } from "ts-morph";
 
 import { chooseAdapter, fallbackAdapter, type FrameworkAdapter } from "./adapter.ts";
 import { ALL_ADAPTERS, expressAdapter, identifyExpressRole } from "./adapters/index.ts";
-import { extractImports, extractCommonJSExports } from "./imports.ts";
+import { extractImports } from "./imports.ts";
 import { Resolver } from "./resolve.ts";
 
-export { extractCommonJSExports };
 export { expressAdapter, fallbackAdapter, identifyExpressRole };
 import {
   SCHEMA_VERSION,

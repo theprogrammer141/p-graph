@@ -181,7 +181,3 @@ export function countRoutes(files: readonly FileNode[], adapter?: string): numbe
   if (adapter === "express") return 0;
   return files.filter((f) => identifyConvention(f.path)?.role === "route").length;
 }
-
-export function countUnidentified(files: readonly FileNode[]): number {
-  return files.filter((f) => identifyConvention(f.path) === null).length;
-}

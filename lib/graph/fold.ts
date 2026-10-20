@@ -4,9 +4,9 @@
 import type { Edge, FileNode } from "../../parser/types.ts";
 
 /** Readable upper bound on visible nodes. The threshold rises until we're under it. */
-export const TARGET_MAX_NODES = 24;
+const TARGET_MAX_NODES = 24;
 /** "Fewer than a couple of files" — the starting threshold. */
-export const START_THRESHOLD = 2;
+const START_THRESHOLD = 2;
 
 export interface FoldedGroup {
   /** The directory this node stands for, repo-relative. "." for the root. */
@@ -43,7 +43,7 @@ function depthOf(dir: string): number {
  * every merge decision at a depth is made against counts as they stood before
  * any merge at that depth, so siblings never see each other's merges.
  */
-export function foldAt(files: readonly FileNode[], threshold: number): FoldedGroup[] {
+function foldAt(files: readonly FileNode[], threshold: number): FoldedGroup[] {
   const held = new Map<string, string[]>();
   const ensure = (dir: string) => {
     // Every ancestor exists as a directory, even one holding no files of its

@@ -117,7 +117,7 @@ function stripTokenPunctuation(raw: string): string {
  * Normalizes a path string: strips surrounding punctuation, converts backslashes,
  * collapses duplicate slashes, and removes leading ./ or / and trailing /.
  */
-export function normalizePath(raw: string): string {
+function normalizePath(raw: string): string {
   const cleaned = stripTokenPunctuation(raw)
     .replace(/\\/g, "/")
     .replace(/\/+/g, "/")
@@ -132,7 +132,7 @@ export function normalizePath(raw: string): string {
 /**
  * Checks whether a token is shaped like a file or directory path.
  */
-export function isPathShaped(token: string): boolean {
+function isPathShaped(token: string): boolean {
   const clean = stripTokenPunctuation(token).replace(/\\/g, "/");
 
   if (!clean || clean.length < 3) return false;
@@ -179,7 +179,7 @@ export function isPathShaped(token: string): boolean {
 /**
  * Extracts all unique normalized path-shaped tokens from an explanation text.
  */
-export function extractPathTokens(content: string): string[] {
+function extractPathTokens(content: string): string[] {
   const paths = new Set<string>();
 
   const addIfValidPath = (candidate: string): void => {
