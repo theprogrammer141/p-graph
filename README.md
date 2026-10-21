@@ -6,8 +6,9 @@ A local codebase intelligence tool that reads public TypeScript and JavaScript r
 
 ## Video Introduction
 
-<video width="640" controls>
-  <source src="./assets/p-graph-demo.mp4" type="video/mp4">
+<video src="assets/p-graph-demo.mp4" controls="controls" width="100%">
+  <source src="assets/p-graph-demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
 </video>
 
 ---
