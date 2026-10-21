@@ -6,7 +6,9 @@ A local codebase intelligence tool that reads public TypeScript and JavaScript r
 
 ## Video Introduction
 
-<!-- Video walkthrough placeholder. Embed or link a demo recording here. -->
+<video width="640" controls>
+  <source src="./assets/p-graph-demo.mp4" type="video/mp4">
+</video>
 
 ---
 
