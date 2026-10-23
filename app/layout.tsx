@@ -8,6 +8,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { ThemeSwitcher } from "./components/theme-switcher";
 import { Logo } from "./components/logo";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -84,6 +85,7 @@ export default async function RootLayout({
             </header>
             {children}
             <SpeedInsights />
+            <Analytics />
           </ThemeProvider>
         </body>
       </html>
