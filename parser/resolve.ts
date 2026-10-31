@@ -7,8 +7,12 @@ import { ts } from "ts-morph";
 import {
   isSourceFile,
   relativeInside,
+  type CSharpManifest,
+  type DartManifest,
   type PackageManifest,
+  type PythonManifest,
 } from "./walk.ts";
+import type { CSharpFileDeclarations } from "./imports.ts";
 import type {
   ExcludedDirectory,
   ImportOutcome,
@@ -30,6 +34,10 @@ export interface ResolverInput {
   skipped: ReadonlyMap<string, SkippedFile>;
   excludedDirectories: readonly ExcludedDirectory[];
   manifests: readonly PackageManifest[];
+  pythonManifests?: readonly PythonManifest[];
+  dartManifests?: readonly DartManifest[];
+  csharpManifests?: readonly CSharpManifest[];
+  csharpDeclarations?: ReadonlyMap<string, CSharpFileDeclarations>;
 }
 
 const CONFIG_NAMES = ["tsconfig.json", "jsconfig.json"] as const;
@@ -41,6 +49,183 @@ const RUNTIME_SIBLINGS: Record<string, readonly string[]> = {
   m: [".mjs"],
   c: [".cjs"],
 };
+
+const PYTHON_STDLIB_MODULES = new Set([
+  "__future__",
+  "abc",
+  "argparse",
+  "array",
+  "ast",
+  "asyncio",
+  "atexit",
+  "base64",
+  "bisect",
+  "builtins",
+  "bz2",
+  "calendar",
+  "cmath",
+  "cmd",
+  "code",
+  "codecs",
+  "collections",
+  "colorsys",
+  "compileall",
+  "concurrent",
+  "configparser",
+  "contextlib",
+  "contextvars",
+  "copy",
+  "copyreg",
+  "cProfile",
+  "csv",
+  "ctypes",
+  "curses",
+  "dataclasses",
+  "datetime",
+  "dbm",
+  "decimal",
+  "difflib",
+  "dis",
+  "doctest",
+  "email",
+  "encodings",
+  "enum",
+  "errno",
+  "faulthandler",
+  "fcntl",
+  "filecmp",
+  "fileinput",
+  "fnmatch",
+  "fractions",
+  "ftplib",
+  "functools",
+  "gc",
+  "getopt",
+  "getpass",
+  "gettext",
+  "glob",
+  "graphlib",
+  "grp",
+  "gzip",
+  "hashlib",
+  "heapq",
+  "hmac",
+  "html",
+  "http",
+  "imaplib",
+  "importlib",
+  "inspect",
+  "io",
+  "ipaddress",
+  "itertools",
+  "json",
+  "keyword",
+  "linecache",
+  "locale",
+  "logging",
+  "lzma",
+  "mailbox",
+  "marshal",
+  "math",
+  "mimetypes",
+  "mmap",
+  "modulefinder",
+  "multiprocessing",
+  "netrc",
+  "numbers",
+  "operator",
+  "optparse",
+  "os",
+  "pathlib",
+  "pdb",
+  "pickle",
+  " pickletools",
+  "pkgutil",
+  "platform",
+  "plistlib",
+  "poplib",
+  "posix",
+  "pprint",
+  "profile",
+  "pstats",
+  "pty",
+  "pwd",
+  "py_compile",
+  "pyclbr",
+  "pydoc",
+  "queue",
+  "quopri",
+  "random",
+  "re",
+  "readline",
+  "reprlib",
+  "resource",
+  "rlcompleter",
+  "runpy",
+  "sched",
+  "secrets",
+  "select",
+  "selectors",
+  "shelve",
+  "shlex",
+  "shutil",
+  "signal",
+  "site",
+  "smtplib",
+  "socket",
+  "socketserver",
+  "sqlite3",
+  "ssl",
+  "stat",
+  "statistics",
+  "string",
+  "stringprep",
+  "struct",
+  "subprocess",
+  "symtable",
+  "sys",
+  "sysconfig",
+  "syslog",
+  "tabnanny",
+  "tarfile",
+  "tempfile",
+  "termios",
+  "test",
+  "textwrap",
+  "threading",
+  "time",
+  "timeit",
+  "tkinter",
+  "token",
+  "tokenize",
+  "tomllib",
+  "trace",
+  "traceback",
+  "tracemalloc",
+  "tty",
+  "turtle",
+  "types",
+  "typing",
+  "unicodedata",
+  "unittest",
+  "urllib",
+  "uuid",
+  "venv",
+  "warnings",
+  "wave",
+  "weakref",
+  "webbrowser",
+  "winreg",
+  "winsound",
+  "wsgiref",
+  "xml",
+  "xmlrpc",
+  "zipapp",
+  "zipfile",
+  "zipimport",
+  "zlib",
+  "zoneinfo",
+]);
 
 function isFile(abs: string): boolean {
   try {
@@ -88,6 +273,11 @@ export class Resolver {
   private readonly configByDir = new Map<string, LoadedConfig>();
   private readonly configByPath = new Map<string, LoadedConfig>();
   private readonly workspaceNames: Map<string, string>;
+  private readonly pythonSearchRoots: readonly string[];
+  private readonly pythonPackages: ReadonlySet<string>;
+  private readonly csharpByNamespace = new Map<string, string[]>();
+  private readonly csharpByFullType = new Map<string, string[]>();
+  private readonly csharpPackages: ReadonlySet<string>;
 
   constructor(input: ResolverInput) {
     this.input = input;
@@ -96,9 +286,73 @@ export class Resolver {
         m.name ? [[m.name, m.dir] as [string, string]] : [],
       ),
     );
+
+    // Python search roots: repo root, `src/` if present, manifest dirs, and Django/WSGI dirs.
+    const pyRoots = new Set<string>([""]);
+    for (const nodePath of input.nodes) {
+      if (nodePath.startsWith("src/")) pyRoots.add("src");
+      if (
+        nodePath.endsWith("/manage.py") ||
+        nodePath.endsWith("/wsgi.py") ||
+        nodePath.endsWith("/asgi.py")
+      ) {
+        const dir = path.posix.dirname(nodePath);
+        if (dir && dir !== ".") pyRoots.add(dir);
+      }
+    }
+    for (const m of input.pythonManifests ?? []) {
+      if (m.dir && m.dir !== ".") pyRoots.add(m.dir);
+    }
+    this.pythonSearchRoots = [...pyRoots];
+
+    const pyPkgs = new Set<string>();
+    for (const m of input.pythonManifests ?? []) {
+      for (const pkg of m.packages) pyPkgs.add(pkg);
+    }
+    this.pythonPackages = pyPkgs;
+
+    // Index C# declarations by namespace and full type name.
+    if (input.csharpDeclarations) {
+      for (const [filePath, decls] of input.csharpDeclarations.entries()) {
+        for (const ns of decls.namespaces) {
+          let nsList = this.csharpByNamespace.get(ns);
+          if (!nsList) {
+            nsList = [];
+            this.csharpByNamespace.set(ns, nsList);
+          }
+          nsList.push(filePath);
+
+          for (const typeName of decls.types) {
+            const fullType = `${ns}.${typeName}`;
+            let typeList = this.csharpByFullType.get(fullType);
+            if (!typeList) {
+              typeList = [];
+              this.csharpByFullType.set(fullType, typeList);
+            }
+            typeList.push(filePath);
+          }
+        }
+      }
+    }
+
+    const csPkgs = new Set<string>();
+    for (const m of input.csharpManifests ?? []) {
+      for (const pkg of m.packages) csPkgs.add(pkg);
+    }
+    this.csharpPackages = csPkgs;
   }
 
   resolve(fromRel: string, specifier: string): ImportOutcome {
+    if (fromRel.endsWith(".py")) {
+      return this.resolvePython(fromRel, specifier);
+    }
+    if (fromRel.endsWith(".dart")) {
+      return this.resolveDart(fromRel, specifier);
+    }
+    if (fromRel.endsWith(".cs")) {
+      return this.resolveCSharpTargets(fromRel, specifier)[0];
+    }
+
     const fromAbs = path.join(this.input.root, fromRel);
     const config = this.configFor(path.dirname(fromAbs));
     const { resolvedModule } = ts.resolveModuleName(
@@ -115,6 +369,238 @@ export class Resolver {
       );
     }
     return this.classifyUnresolved(fromRel, fromAbs, specifier, config);
+  }
+
+  /**
+   * Checks whether `from baseSpec import importedName` refers to a real Python submodule
+   * file on disk (`<baseSpec>/<importedName>.py` or `<baseSpec>/<importedName>/__init__.py`).
+   */
+  hasPythonSubmodule(
+    fromRel: string,
+    baseSpec: string,
+    importedName: string,
+  ): boolean {
+    const combined = baseSpec.endsWith(".")
+      ? `${baseSpec}${importedName}`
+      : `${baseSpec}.${importedName}`;
+    return this.findPythonModuleCandidate(fromRel, combined) !== null;
+  }
+
+  private findPythonModuleCandidate(
+    fromRel: string,
+    specifier: string,
+  ): ImportOutcome | null {
+    const dotMatch = /^(\.+)(.*)$/.exec(specifier);
+    if (dotMatch) {
+      const dots = dotMatch[1].length;
+      const remainder = dotMatch[2].replace(/\./g, "/");
+      let baseDir = path.dirname(path.join(this.input.root, fromRel));
+      for (let i = 1; i < dots; i++) {
+        baseDir = path.dirname(baseDir);
+      }
+      const targetBase = remainder ? path.join(baseDir, remainder) : baseDir;
+      return (
+        this.classifyCandidate(`${targetBase}.py`) ??
+        this.classifyCandidate(path.join(targetBase, "__init__.py"))
+      );
+    }
+
+    const relModPath = specifier.replace(/\./g, "/");
+    const fromDir = path.posix.dirname(fromRel);
+    const rootsToCheck =
+      fromDir && fromDir !== "." && !this.pythonSearchRoots.includes(fromDir)
+        ? [...this.pythonSearchRoots, fromDir]
+        : this.pythonSearchRoots;
+
+    for (const searchRoot of rootsToCheck) {
+      const prefix = searchRoot ? `${searchRoot}/${relModPath}` : relModPath;
+      const absBase = path.join(this.input.root, prefix);
+      const outcome =
+        this.classifyCandidate(`${absBase}.py`) ??
+        this.classifyCandidate(path.join(absBase, "__init__.py"));
+      if (outcome) return outcome;
+    }
+
+    return null;
+  }
+
+  resolvePython(fromRel: string, specifier: string): ImportOutcome {
+    const localCandidate = this.findPythonModuleCandidate(fromRel, specifier);
+    if (localCandidate) return localCandidate;
+
+    // Relative import that didn't match a file in the repository
+    if (specifier.startsWith(".")) {
+      return {
+        status: "unresolved",
+        reason: "not-found",
+        detail: `relative Python import "${specifier}" from ${fromRel} matched no module on disk`,
+      };
+    }
+
+    const topPkg = specifier.split(".")[0] ?? specifier;
+    const normPkg = topPkg.toLowerCase().replace(/[-.]+/g, "_");
+
+    if (PYTHON_STDLIB_MODULES.has(topPkg) || PYTHON_STDLIB_MODULES.has(normPkg)) {
+      return {
+        status: "external",
+        reason: "builtin",
+        detail: "Python standard library",
+      };
+    }
+
+    if (this.pythonPackages.has(topPkg.toLowerCase()) || this.pythonPackages.has(normPkg)) {
+      return {
+        status: "external",
+        reason: "package",
+        detail: `declared in Python project dependencies (${topPkg})`,
+      };
+    }
+
+    return {
+      status: "unresolved",
+      reason: "unknown-specifier",
+      detail: `"${specifier}" is not a local module, standard library module, or declared dependency`,
+    };
+  }
+
+  resolveDart(fromRel: string, specifier: string): ImportOutcome {
+    if (specifier.startsWith("dart:")) {
+      return {
+        status: "external",
+        reason: "builtin",
+        detail: "Dart SDK library",
+      };
+    }
+
+    if (specifier.startsWith("package:")) {
+      const withoutScheme = specifier.slice("package:".length);
+      const slashIdx = withoutScheme.indexOf("/");
+      const pkgName = slashIdx >= 0 ? withoutScheme.slice(0, slashIdx) : withoutScheme;
+      const restPath = slashIdx >= 0 ? withoutScheme.slice(slashIdx + 1) : "";
+
+      const manifests = this.input.dartManifests ?? [];
+      for (const m of manifests) {
+        if (m.name === pkgName && restPath) {
+          const libRel = m.dir === "." ? `lib/${restPath}` : `${m.dir}/lib/${restPath}`;
+          const abs = path.join(this.input.root, libRel);
+          return this.classifyCandidate(abs) ?? this.notFound(abs, "");
+        }
+      }
+
+      if (
+        pkgName === "flutter" ||
+        pkgName === "flutter_test" ||
+        pkgName === "flutter_localizations" ||
+        pkgName === "flutter_web_plugins" ||
+        manifests.some((m) => m.dependencies.has(pkgName))
+      ) {
+        return {
+          status: "external",
+          reason: "package",
+          detail: `declared in pubspec.yaml (${pkgName})`,
+        };
+      }
+
+      return {
+        status: "unresolved",
+        reason: "unknown-specifier",
+        detail: `"${specifier}" does not match pubspec package name or declared dependencies`,
+      };
+    }
+
+    // Relative URI (in Dart, any URI without a scheme is relative to the importing library)
+    const fromAbs = path.join(this.input.root, fromRel);
+    const abs = path.resolve(path.dirname(fromAbs), specifier);
+    return this.classifyCandidate(abs) ?? this.notFound(abs, "");
+  }
+
+  /**
+   * Resolves a C# `using` directive to one or more deterministic outcomes.
+   * Never guesses an edge: when a namespace spans multiple files, only files whose
+   * declared types are referenced in `fromRel` are connected.
+   */
+  resolveCSharpTargets(fromRel: string, specifier: string): ImportOutcome[] {
+    // 1. Exact full type match (`using static Ns.Type` or `using Alias = Ns.Type`)
+    const typeFiles = (this.csharpByFullType.get(specifier) ?? []).filter(
+      (f) => f !== fromRel,
+    );
+    if (typeFiles.length === 1) {
+      return [this.classifyRepoFile(typeFiles[0])];
+    }
+
+    // 2. In-repo declared namespace match
+    const nsFiles = (this.csharpByNamespace.get(specifier) ?? []).filter(
+      (f) => f !== fromRel,
+    );
+    if (nsFiles.length === 1) {
+      return [this.classifyRepoFile(nsFiles[0])];
+    }
+    if (nsFiles.length > 1) {
+      const fromDecls = this.input.csharpDeclarations?.get(fromRel);
+      const fromIdentifiers = fromDecls?.identifiers;
+      if (fromIdentifiers) {
+        const matched = nsFiles.filter((candidatePath) => {
+          const targetDecls = this.input.csharpDeclarations?.get(candidatePath);
+          if (!targetDecls) return false;
+          return targetDecls.types.some((t) => fromIdentifiers.has(t));
+        });
+        if (matched.length > 0) {
+          return matched.map((m) => this.classifyRepoFile(m));
+        }
+      }
+      return [
+        {
+          status: "unresolved",
+          reason: "not-found",
+          detail: `namespace "${specifier}" spans ${nsFiles.length} files and no specific type from it is referenced in ${fromRel}`,
+        },
+      ];
+    }
+
+    // 3. Check .csproj PackageReference matches
+    for (const pkg of this.csharpPackages) {
+      if (
+        specifier.toLowerCase() === pkg.toLowerCase() ||
+        specifier.toLowerCase().startsWith(pkg.toLowerCase() + ".") ||
+        pkg.toLowerCase().startsWith(specifier.toLowerCase() + ".")
+      ) {
+        return [
+          {
+            status: "external",
+            reason: "package",
+            detail: `declared in .csproj (${pkg})`,
+          },
+        ];
+      }
+    }
+
+    // 4. .NET BCL / System / Microsoft namespaces
+    if (
+      specifier === "System" ||
+      specifier.startsWith("System.") ||
+      specifier === "Microsoft" ||
+      specifier.startsWith("Microsoft.") ||
+      specifier === "Windows" ||
+      specifier.startsWith("Windows.") ||
+      specifier === "netstandard" ||
+      specifier.startsWith("netstandard.")
+    ) {
+      return [
+        {
+          status: "external",
+          reason: "builtin",
+          detail: ".NET base class library",
+        },
+      ];
+    }
+
+    return [
+      {
+        status: "unresolved",
+        reason: "unknown-specifier",
+        detail: `namespace "${specifier}" is not declared in the repository or any .csproj PackageReference`,
+      },
+    ];
   }
 
   private display(abs: string): string {

@@ -20,6 +20,9 @@ const EXTENSION_COLORS: Readonly<Record<string, string>> = {
   ".jsx": "#0d9488",
   ".mjs": "#0891b2",
   ".cjs": "#78716c",
+  ".py": "#ea580c",
+  ".dart": "#0891b2",
+  ".cs": "#7c3aed",
 };
 
 // Order the rail follows, so the list doesn't reshuffle between repositories.

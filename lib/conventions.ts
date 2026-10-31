@@ -55,7 +55,10 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
   // 1. Tests (must precede framework folders so test/controllers/x is a test)
   if (
     /\.(test|spec)\.[jt]sx?$/.test(fileName) ||
-    /(^|\/)(__tests__|test|tests|test-fixtures)\//.test(norm)
+    /^test_.*\.py$/.test(fileName) ||
+    /_test\.(py|dart)$/.test(fileName) ||
+    /(Tests?|Specs?)\.cs$/.test(fileName) ||
+    /(^|\/)(__tests__|test|tests|test-fixtures|integration_test)\//.test(norm)
   ) {
     return { role: "test", label: ROLE_LABELS.test };
   }
@@ -65,7 +68,11 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
     /\.config\.[jt]s(on)?$/.test(fileName) ||
     /^\.[a-z]+rc(\.[a-z]+)?$/.test(fileName) ||
     fileName.startsWith("tsconfig") ||
-    fileName === "package.json"
+    fileName === "package.json" ||
+    fileName === "pyproject.toml" ||
+    fileName === "pubspec.yaml" ||
+    fileName.endsWith(".csproj") ||
+    /^(settings|config|conftest)\.py$/.test(fileName)
   ) {
     return { role: "config", label: ROLE_LABELS.config };
   }
@@ -74,54 +81,72 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
   if (
     /(^|\/)app\/(.+)?(page|route|layout|loading|error)\.[jt]sx?$/.test(norm) ||
     (/(^|\/)pages\//.test(norm) && !fileName.startsWith("_")) ||
-    /(^|\/)(routes?|routers?)\//.test(norm) ||
-    /\.(route|router)\.[jt]sx?$/.test(fileName)
+    /(^|\/)(routes?|routers?|urls|endpoints?|blueprints?)\//.test(norm) ||
+    /\.(route|router)\.[jt]sx?$/.test(fileName) ||
+    /^(urls|routes|router|endpoints|blueprint)\.py$/.test(fileName)
   ) {
     return { role: "route", label: ROLE_LABELS.route };
   }
 
   // 4. Controllers (singular & plural)
   if (
-    /(^|\/)controllers?\//.test(norm) ||
-    /\.controller\.[jt]sx?$/.test(fileName)
+    /(^|\/)controllers?\//i.test(norm) ||
+    /\.controller\.[jt]sx?$/.test(fileName) ||
+    /Controller\.cs$/.test(fileName)
   ) {
     return { role: "controller", label: ROLE_LABELS.controller };
   }
 
   // 5. Middleware (singular & plural, or top-level middleware file)
   if (
-    /(^|\/)middlewares?\//.test(norm) ||
+    /(^|\/)middlewares?\//i.test(norm) ||
     /\.middleware\.[jt]sx?$/.test(fileName) ||
-    /^(middleware|proxy)\.[jt]sx?$/.test(fileName)
+    /^(middleware|proxy)\.[jt]sx?$/.test(fileName) ||
+    /^middlewares?\.py$/.test(fileName) ||
+    /Middleware\.cs$/.test(fileName)
   ) {
     return { role: "middleware", label: ROLE_LABELS.middleware };
   }
 
   // 6. Models (singular & plural)
   if (
-    /(^|\/)models?\//.test(norm) ||
-    /\.model\.[jt]sx?$/.test(fileName)
+    /(^|\/)(models?|entities|schemas?)\//i.test(norm) ||
+    /\.model\.[jt]sx?$/.test(fileName) ||
+    /^(models?|schemas?|serializers?)\.py$/.test(fileName) ||
+    /_(model|entity)\.dart$/.test(fileName) ||
+    /(Model|Entity|Dto|DTO)\.cs$/.test(fileName)
   ) {
     return { role: "model", label: ROLE_LABELS.model };
   }
 
   // 7. Services (singular & plural)
   if (
-    /(^|\/)services?\//.test(norm) ||
-    /\.service\.[jt]sx?$/.test(fileName)
+    /(^|\/)(services?|repositories)\//i.test(norm) ||
+    /\.service\.[jt]sx?$/.test(fileName) ||
+    /^(services?|crud|tasks)\.py$/.test(fileName) ||
+    /_(service|repository|repo)\.dart$/.test(fileName) ||
+    /(Service|Repository)\.cs$/.test(fileName)
   ) {
     return { role: "service", label: ROLE_LABELS.service };
   }
 
   // 8. Views (singular & plural)
-  if (/(^|\/)views?\//.test(norm)) {
+  if (
+    /(^|\/)(views?|screens?)\//i.test(norm) ||
+    /^(views|viewsets|forms|admin)\.py$/.test(fileName) ||
+    /_(screen|page|view)\.dart$/.test(fileName) ||
+    /Screen\.[jt]sx?$/.test(fileName)
+  ) {
     return { role: "view", label: ROLE_LABELS.view };
   }
 
   // 9. Handlers (singular & plural)
   if (
-    /(^|\/)handlers?\//.test(norm) ||
-    /\.handler\.[jt]sx?$/.test(fileName)
+    /(^|\/)handlers?\//i.test(norm) ||
+    /\.handler\.[jt]sx?$/.test(fileName) ||
+    /^handlers?\.py$/.test(fileName) ||
+    /(^|\/)supabase\/functions\//.test(norm) ||
+    /(^|\/)functions\/src\//.test(norm)
   ) {
     return { role: "handler", label: ROLE_LABELS.handler };
   }
@@ -148,13 +173,19 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
   if (
     ext === ".tsx" ||
     ext === ".jsx" ||
-    /(^|\/)components\//.test(norm)
+    /(^|\/)(components|widgets)\//i.test(norm) ||
+    /_widget\.dart$/.test(fileName)
   ) {
     return { role: "component", label: ROLE_LABELS.component };
   }
 
   // 13. Entry points
-  if (/^(index|main|app|server)\.[jt]sx?$/.test(fileName)) {
+  if (
+    /^(index|main|app|server)\.[jt]sx?$/.test(fileName) ||
+    /^(__main__|main|app|wsgi|asgi|manage)\.py$/.test(fileName) ||
+    fileName === "main.dart" ||
+    /^(Program|Startup)\.cs$/.test(fileName)
+  ) {
     return { role: "entry", label: ROLE_LABELS.entry };
   }
 
@@ -162,7 +193,8 @@ export function identifyConvention(filePath: string): IdentifiedRole | null {
   if (
     /(^|\/)(scripts|bin)\//.test(norm) ||
     fileName === "cli.ts" ||
-    fileName === "cli.js"
+    fileName === "cli.js" ||
+    fileName === "cli.py"
   ) {
     return { role: "script", label: ROLE_LABELS.script };
   }
@@ -176,8 +208,19 @@ export function kindOfFile(filePath: string): string {
   return "Unidentified";
 }
 
-/** Counts files matching route naming conventions; returns zero for the "express" adapter. */
+const NON_ROUTABLE_ADAPTERS = new Set([
+  "express",
+  "Express",
+  "Django",
+  "React Native",
+  "Flutter",
+  "Supabase",
+  "Firebase",
+  "Python",
+]);
+
+/** Counts files matching route naming conventions; returns zero for adapters without static route conventions. */
 export function countRoutes(files: readonly FileNode[], adapter?: string): number {
-  if (adapter === "express") return 0;
+  if (adapter && NON_ROUTABLE_ADAPTERS.has(adapter)) return 0;
   return files.filter((f) => identifyConvention(f.path)?.role === "route").length;
 }

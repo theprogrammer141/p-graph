@@ -154,12 +154,22 @@ function isFrameworkReached(filePath: string): boolean {
     return true;
   }
 
+  // Django / Python / .NET / BaaS framework-invoked files
+  if (
+    /(^|\/)(migrations|supabase\/functions|functions\/src)\//.test(norm) ||
+    /(^|\/)(admin|urls|wsgi|asgi|manage)\.py$/.test(norm) ||
+    /Controller\.cs$/.test(norm)
+  ) {
+    return true;
+  }
+
   // General convention roles
   const identified = identifyConvention(filePath);
   if (!identified) return false;
 
   return (
     identified.role === "route" ||
+    identified.role === "controller" ||
     identified.role === "config" ||
     identified.role === "entry" ||
     identified.role === "script"

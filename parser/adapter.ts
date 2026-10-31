@@ -21,10 +21,10 @@ export interface FrameworkAdapter {
    */
   assignRole?(relPath: string, fileText?: string): string | null;
   /**
-   * Extract routes from a source file given its ts-morph SourceFile.
+   * Extract routes from a source file given its ts-morph SourceFile or raw text.
    * Exact routes only; if anything cannot be recovered from syntax, emit nothing.
    */
-  extractRoutes?(relPath: string, sourceFile: SourceFile): ExtractedRoute[];
+  extractRoutes?(relPath: string, sourceFile: SourceFile, fileText?: string): ExtractedRoute[];
 }
 
 // Directories that hold dependencies or build output in essentially every JS

@@ -1,8 +1,15 @@
-import { Project } from "ts-morph";
+import { Project, type SourceFile } from "ts-morph";
 
 import { chooseAdapter, fallbackAdapter, type FrameworkAdapter } from "./adapter.ts";
 import { ALL_ADAPTERS, expressAdapter, identifyExpressRole } from "./adapters/index.ts";
-import { extractImports } from "./imports.ts";
+import {
+  extractCSharpDeclarations,
+  extractCSharpImports,
+  extractDartImports,
+  extractImports,
+  extractPythonImports,
+  type CSharpFileDeclarations,
+} from "./imports.ts";
 import { Resolver } from "./resolve.ts";
 
 export { expressAdapter, fallbackAdapter, identifyExpressRole };
@@ -18,7 +25,7 @@ import {
   type ParseResult,
   type SkipReason,
 } from "./types.ts";
-import { moduleOf, walkRepository } from "./walk.ts";
+import { isTsJsSourceFile, moduleOf, walkRepository } from "./walk.ts";
 
 export interface ParseOptions {
   adapters?: readonly FrameworkAdapter[];
@@ -65,18 +72,30 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
     skippedByReason[skip.reason]++;
   }
 
+  const csharpDeclarations = new Map<string, CSharpFileDeclarations>();
+  for (const c of walk.candidates) {
+    if (c.path.endsWith(".cs")) {
+      csharpDeclarations.set(c.path, extractCSharpDeclarations(c.text));
+    }
+  }
+
   const resolver = new Resolver({
     root,
     nodes: new Set(nodes.keys()),
     skipped: new Map(walk.skipped.map((s) => [s.path, s])),
     excludedDirectories: walk.excludedDirectories,
     manifests: walk.manifests,
+    pythonManifests: walk.pythonManifests,
+    dartManifests: walk.dartManifests,
+    csharpManifests: walk.csharpManifests,
+    csharpDeclarations,
   });
 
   const imports: ImportRecord[] = [];
   const routes: ExtractedRoute[] = [];
   const roles: AssignedRole[] = [];
   let parsedCount = 0;
+  let emptySourceFile: SourceFile | undefined;
 
   for (const c of walk.candidates) {
     options?.onStartFile?.(c.path);
@@ -85,34 +104,112 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
     if (node) node.role = role;
     roles.push({ filePath: c.path, role });
 
-    let sourceFile;
+    let sourceFile: SourceFile | undefined;
     try {
-      sourceFile = project.createSourceFile(c.path, c.text, { overwrite: true });
-      const extracted = extractImports(sourceFile);
-      for (const ex of extracted) {
-        let outcome: ImportOutcome;
-        if (ex.specifier === null) {
-          outcome = {
-            status: "unresolved",
-            reason: "non-literal-dynamic",
-            detail: `${ex.kind === "dynamic" ? "dynamic import" : ex.kind} argument is not a literal string: ${ex.expressionText}`,
-          };
-        } else {
-          outcome = resolver.resolve(c.path, ex.specifier);
+      if (isTsJsSourceFile(c.path)) {
+        sourceFile = project.createSourceFile(c.path, c.text, { overwrite: true });
+        const extracted = extractImports(sourceFile);
+        for (const ex of extracted) {
+          let outcome: ImportOutcome;
+          if (ex.specifier === null) {
+            outcome = {
+              status: "unresolved",
+              reason: "non-literal-dynamic",
+              detail: `${ex.kind === "dynamic" ? "dynamic import" : ex.kind} argument is not a literal string: ${ex.expressionText}`,
+            };
+          } else {
+            outcome = resolver.resolve(c.path, ex.specifier);
+          }
+          imports.push({
+            from: c.path,
+            line: ex.line,
+            kind: ex.kind,
+            specifier: ex.specifier,
+            typeOnly: ex.typeOnly,
+            outcome,
+          });
         }
-        imports.push({
-          from: c.path,
-          line: ex.line,
-          kind: ex.kind,
-          specifier: ex.specifier,
-          typeOnly: ex.typeOnly,
-          outcome,
+        if (adapter.extractRoutes) {
+          const fileRoutes = adapter.extractRoutes(c.path, sourceFile, c.text);
+          if (fileRoutes && fileRoutes.length > 0) {
+            routes.push(...fileRoutes);
+          }
+        }
+      } else if (c.path.endsWith(".py")) {
+        const isInit = c.path === "__init__.py" || c.path.endsWith("/__init__.py");
+        const extracted = extractPythonImports(c.text, {
+          isInitFile: isInit,
+          isSubmodule: (baseSpec, importedName) =>
+            resolver.hasPythonSubmodule(c.path, baseSpec, importedName),
         });
-      }
-      if (adapter.extractRoutes) {
-        const fileRoutes = adapter.extractRoutes(c.path, sourceFile);
-        if (fileRoutes && fileRoutes.length > 0) {
-          routes.push(...fileRoutes);
+        for (const ex of extracted) {
+          const outcome: ImportOutcome =
+            ex.specifier === null
+              ? {
+                  status: "unresolved",
+                  reason: "non-literal-dynamic",
+                  detail: `dynamic import argument is not a literal string: ${ex.expressionText}`,
+                }
+              : resolver.resolvePython(c.path, ex.specifier);
+          imports.push({
+            from: c.path,
+            line: ex.line,
+            kind: ex.kind,
+            specifier: ex.specifier,
+            typeOnly: ex.typeOnly,
+            outcome,
+          });
+        }
+        if (adapter.extractRoutes) {
+          emptySourceFile ??= project.createSourceFile("__empty__.ts", "", { overwrite: true });
+          const fileRoutes = adapter.extractRoutes(c.path, emptySourceFile, c.text);
+          if (fileRoutes && fileRoutes.length > 0) {
+            routes.push(...fileRoutes);
+          }
+        }
+      } else if (c.path.endsWith(".dart")) {
+        const extracted = extractDartImports(c.text);
+        for (const ex of extracted) {
+          if (ex.specifier === null) continue;
+          const outcome = resolver.resolveDart(c.path, ex.specifier);
+          imports.push({
+            from: c.path,
+            line: ex.line,
+            kind: ex.kind,
+            specifier: ex.specifier,
+            typeOnly: ex.typeOnly,
+            outcome,
+          });
+        }
+        if (adapter.extractRoutes) {
+          emptySourceFile ??= project.createSourceFile("__empty__.ts", "", { overwrite: true });
+          const fileRoutes = adapter.extractRoutes(c.path, emptySourceFile, c.text);
+          if (fileRoutes && fileRoutes.length > 0) {
+            routes.push(...fileRoutes);
+          }
+        }
+      } else if (c.path.endsWith(".cs")) {
+        const extracted = extractCSharpImports(c.text);
+        for (const ex of extracted) {
+          if (ex.specifier === null) continue;
+          const outcomes = resolver.resolveCSharpTargets(c.path, ex.specifier);
+          for (const outcome of outcomes) {
+            imports.push({
+              from: c.path,
+              line: ex.line,
+              kind: ex.kind,
+              specifier: ex.specifier,
+              typeOnly: ex.typeOnly,
+              outcome,
+            });
+          }
+        }
+        if (adapter.extractRoutes) {
+          emptySourceFile ??= project.createSourceFile("__empty__.ts", "", { overwrite: true });
+          const fileRoutes = adapter.extractRoutes(c.path, emptySourceFile, c.text);
+          if (fileRoutes && fileRoutes.length > 0) {
+            routes.push(...fileRoutes);
+          }
         }
       }
       parsedCount++;
@@ -128,6 +225,7 @@ export function parse(root: string, options?: ParseOptions): ParseResult {
       if (sourceFile) project.removeSourceFile(sourceFile);
     }
   }
+  if (emptySourceFile) project.removeSourceFile(emptySourceFile);
 
   warnings.push(...resolver.warnings);
 
