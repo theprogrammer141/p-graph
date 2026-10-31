@@ -5,7 +5,7 @@ import path from "node:path";
 import type { FrameworkAdapter } from "./adapter.ts";
 import type { ExcludedDirectory, SkippedFile } from "./types.ts";
 
-export const SOURCE_EXTENSIONS = [
+export const TS_JS_EXTENSIONS = [
   ".ts",
   ".tsx",
   ".mts",
@@ -14,6 +14,13 @@ export const SOURCE_EXTENSIONS = [
   ".jsx",
   ".mjs",
   ".cjs",
+] as const;
+
+export const SOURCE_EXTENSIONS = [
+  ...TS_JS_EXTENSIONS,
+  ".py",
+  ".dart",
+  ".cs",
 ] as const;
 
 const DECLARATION_FILE = /\.d\.[mc]?ts$/;
@@ -39,16 +46,52 @@ export interface PackageManifest {
   dependencies: Map<string, string>;
 }
 
+export interface PythonManifest {
+  /** Repo-relative directory holding the Python manifest. "." for the root. */
+  dir: string;
+  /** Declared package/import names (lowercased, normalized). */
+  packages: Set<string>;
+}
+
+export interface DartManifest {
+  /** Repo-relative directory holding pubspec.yaml. "." for the root. */
+  dir: string;
+  /** Package name declared in pubspec.yaml. */
+  name: string | null;
+  /** Declared dependency package names. */
+  dependencies: Set<string>;
+}
+
+export interface CSharpManifest {
+  /** Repo-relative directory holding the .csproj file. "." for the root. */
+  dir: string;
+  /** Repo-relative path to the .csproj file. */
+  projectFile: string;
+  /** RootNamespace or AssemblyName or project basename. */
+  rootNamespace: string | null;
+  /** Declared NuGet PackageReference names. */
+  packages: Set<string>;
+  /** Repo-relative paths to referenced .csproj files. */
+  projectReferences: string[];
+}
+
 export interface WalkResult {
   candidates: CandidateFile[];
   skipped: SkippedFile[];
   excludedDirectories: ExcludedDirectory[];
   manifests: PackageManifest[];
+  pythonManifests: PythonManifest[];
+  dartManifests: DartManifest[];
+  csharpManifests: CSharpManifest[];
   warnings: string[];
 }
 
 export function isSourceFile(name: string): boolean {
   return SOURCE_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+export function isTsJsSourceFile(name: string): boolean {
+  return TS_JS_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
 function toPosix(p: string): string {
@@ -118,6 +161,174 @@ function readManifest(
   };
 }
 
+const PYTHON_PACKAGE_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  pillow: ["pil"],
+  pyyaml: ["yaml"],
+  beautifulsoup4: ["bs4"],
+  scikit_learn: ["sklearn"],
+  djangorestframework: ["rest_framework"],
+  opencv_python: ["cv2"],
+  opencv_python_headless: ["cv2"],
+  python_dotenv: ["dotenv"],
+  pyjwt: ["jwt"],
+  psycopg2_binary: ["psycopg2"],
+  attrs: ["attr", "attrs"],
+  python_dateutil: ["dateutil"],
+  pydantic_settings: ["pydantic_settings"],
+  firebase_admin: ["firebase_admin"],
+};
+
+function addNormalizedPythonPkg(target: Set<string>, rawName: string): void {
+  const cleaned = rawName
+    .trim()
+    .replace(/^['"]+|['"]+$/g, "")
+    .split(/[[\]=<>!~;@ \t]/)[0]
+    ?.trim()
+    .toLowerCase();
+  if (!cleaned || cleaned.startsWith("-") || cleaned.startsWith("#")) return;
+  const underscored = cleaned.replace(/[-.]+/g, "_");
+  target.add(cleaned);
+  target.add(underscored);
+  const firstSegment = underscored.split("_")[0];
+  if (cleaned.startsWith("google-cloud-") || cleaned.startsWith("google_cloud_")) {
+    target.add("google");
+  }
+  const aliases = PYTHON_PACKAGE_ALIASES[underscored];
+  if (aliases) {
+    for (const a of aliases) target.add(a);
+  }
+  void firstSegment;
+}
+
+function readPythonManifestFile(absPath: string, fileName: string): Set<string> {
+  const packages = new Set<string>();
+  let text = "";
+  try {
+    text = readFileSync(absPath, "utf8");
+  } catch {
+    return packages;
+  }
+
+  if (fileName === "requirements.txt" || /^requirements[-_.\w]*\.txt$/i.test(fileName)) {
+    for (const line of text.split(/\r?\n/)) {
+      const stripped = line.replace(/#.*$/, "").trim();
+      if (!stripped || stripped.startsWith("-")) continue;
+      addNormalizedPythonPkg(packages, stripped);
+    }
+    return packages;
+  }
+
+  if (fileName === "pyproject.toml" || fileName === "Pipfile" || fileName === "setup.cfg") {
+    // Match quoted dependency specifiers (PEP 621 dependencies array)
+    for (const m of text.matchAll(/["']([a-zA-Z0-9][a-zA-Z0-9._-]*)(?:\[[^\]]*\])?\s*(?:[=<>!~;@][^"']*)?["']/g)) {
+      addNormalizedPythonPkg(packages, m[1]);
+    }
+    // Match TOML/INI table keys under dependencies / packages sections
+    let inDepsSection = false;
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.replace(/#.*$/, "").trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("[")) {
+        inDepsSection = /dependencies|packages/i.test(trimmed);
+        continue;
+      }
+      if (inDepsSection) {
+        const keyMatch = /^([a-zA-Z0-9._-]+)\s*=/.exec(trimmed);
+        if (keyMatch && keyMatch[1].toLowerCase() !== "python") {
+          addNormalizedPythonPkg(packages, keyMatch[1]);
+        }
+      }
+    }
+    return packages;
+  }
+
+  if (fileName === "setup.py") {
+    for (const m of text.matchAll(/["']([a-zA-Z0-9][a-zA-Z0-9._-]*)(?:\[[^\]]*\])?(?:[=<>!~][^"']*)?["']/g)) {
+      addNormalizedPythonPkg(packages, m[1]);
+    }
+  }
+
+  return packages;
+}
+
+function readDartManifest(absPath: string, dir: string): DartManifest | null {
+  let text = "";
+  try {
+    text = readFileSync(absPath, "utf8");
+  } catch {
+    return null;
+  }
+  let name: string | null = null;
+  const dependencies = new Set<string>();
+  let currentSection: string | null = null;
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "");
+    if (!line.trim()) continue;
+    const topMatch = /^([a-zA-Z0-9_]+)\s*:\s*(.*)$/.exec(line);
+    if (topMatch) {
+      const key = topMatch[1];
+      const val = topMatch[2].trim().replace(/^['"]+|['"]+$/g, "");
+      if (key === "name" && val) {
+        name = val;
+      }
+      currentSection = key;
+      continue;
+    }
+    if (
+      currentSection === "dependencies" ||
+      currentSection === "dev_dependencies" ||
+      currentSection === "dependency_overrides"
+    ) {
+      const depMatch = /^\s{2}([a-zA-Z0-9_]+)\s*:/.exec(line);
+      if (depMatch) {
+        dependencies.add(depMatch[1]);
+      }
+    }
+  }
+
+  return { dir, name, dependencies };
+}
+
+function readCSharpManifest(
+  absPath: string,
+  dir: string,
+  relPath: string,
+  root: string,
+): CSharpManifest | null {
+  let text = "";
+  try {
+    text = readFileSync(absPath, "utf8");
+  } catch {
+    return null;
+  }
+  const baseName = path.basename(relPath, ".csproj");
+  const rootNsMatch = /<RootNamespace>\s*([^<\s]+)\s*<\/RootNamespace>/i.exec(text);
+  const asmMatch = /<AssemblyName>\s*([^<\s]+)\s*<\/AssemblyName>/i.exec(text);
+  const rootNamespace = rootNsMatch?.[1] ?? asmMatch?.[1] ?? baseName;
+
+  const packages = new Set<string>();
+  for (const m of text.matchAll(/<PackageReference\s+[^>]*Include\s*=\s*["']([^"']+)["']/gi)) {
+    packages.add(m[1].trim());
+  }
+
+  const projectReferences: string[] = [];
+  for (const m of text.matchAll(/<ProjectReference\s+[^>]*Include\s*=\s*["']([^"']+)["']/gi)) {
+    const refSpec = m[1].replace(/\\/g, "/");
+    const resolvedAbs = path.resolve(path.dirname(absPath), refSpec);
+    const relRef = relativeInside(root, resolvedAbs);
+    if (relRef) projectReferences.push(relRef);
+  }
+
+  return {
+    dir,
+    projectFile: relPath,
+    rootNamespace,
+    packages,
+    projectReferences,
+  };
+}
+
 /**
  * Walks every directory the adapter doesn't exclude and keeps every source
  * file in it. Selection is by directory, never by size, so a kept file's
@@ -132,8 +343,12 @@ export function walkRepository(
     skipped: [],
     excludedDirectories: [],
     manifests: [],
+    pythonManifests: [],
+    dartManifests: [],
+    csharpManifests: [],
     warnings: [],
   };
+  const pythonManifestByDir = new Map<string, PythonManifest>();
 
   const visit = (absDir: string, relDir: string) => {
     let entries;
@@ -162,6 +377,41 @@ export function walkRepository(
       if (entry.name === "package.json" && entry.isFile()) {
         const manifest = readManifest(absPath, relDir || ".", result.warnings);
         if (manifest) result.manifests.push(manifest);
+        continue;
+      }
+
+      if (
+        entry.isFile() &&
+        (entry.name === "pyproject.toml" ||
+          entry.name === "Pipfile" ||
+          entry.name === "setup.cfg" ||
+          entry.name === "setup.py" ||
+          entry.name === "requirements.txt" ||
+          /^requirements[-_.\w]*\.txt$/i.test(entry.name))
+      ) {
+        const dirKey = relDir || ".";
+        const pkgs = readPythonManifestFile(absPath, entry.name);
+        if (pkgs.size > 0) {
+          let pyManifest = pythonManifestByDir.get(dirKey);
+          if (!pyManifest) {
+            pyManifest = { dir: dirKey, packages: new Set<string>() };
+            pythonManifestByDir.set(dirKey, pyManifest);
+            result.pythonManifests.push(pyManifest);
+          }
+          for (const p of pkgs) pyManifest.packages.add(p);
+        }
+        if (entry.name !== "setup.py") continue;
+      }
+
+      if (entry.name === "pubspec.yaml" && entry.isFile()) {
+        const dartManifest = readDartManifest(absPath, relDir || ".");
+        if (dartManifest) result.dartManifests.push(dartManifest);
+        continue;
+      }
+
+      if (entry.name.endsWith(".csproj") && entry.isFile()) {
+        const csManifest = readCSharpManifest(absPath, relDir || ".", relPath, root);
+        if (csManifest) result.csharpManifests.push(csManifest);
         continue;
       }
 

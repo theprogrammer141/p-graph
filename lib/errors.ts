@@ -41,12 +41,69 @@ function generateErrorRef(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+const SAFE_STRUCTURED_ERROR_CODES: Readonly<Record<string, string>> = {
+  "429": "Request limit exceeded. Please wait a moment and try again.",
+};
+
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    if ("code" in error && typeof (error as { code?: unknown }).code === "string") {
+      const code = (error as { code: string }).code.trim();
+      if (code) {
+        return SAFE_STRUCTURED_ERROR_CODES[code] ?? "";
+      }
+    }
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === "string") return msg;
+  }
+  return "";
+}
+
+function formatErrorDiagnostic(error: unknown): string {
+  if (error instanceof Error) {
+    const cause =
+      error.cause instanceof Error
+        ? ` | cause: ${error.cause.message}`
+        : typeof error.cause === "string"
+        ? ` | cause: ${error.cause}`
+        : "";
+    const stack = error.stack ? `\n${error.stack}` : "";
+    return `${error.name}: ${error.message}${cause}${stack}`;
+  }
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    const rec = error as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof rec.message === "string" && rec.message) parts.push(rec.message);
+    if (typeof rec.code === "string" && rec.code) parts.push(`code=${rec.code}`);
+    if (typeof rec.details === "string" && rec.details) {
+      parts.push(rec.details.split("\n")[0]);
+    }
+    if (typeof rec.hint === "string" && rec.hint) parts.push(`hint=${rec.hint}`);
+    if (parts.length > 0) return parts.join(" | ");
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
 /**
- * Logs technical error diagnostics to the server console with a correlation reference.
+ * Logs technical error diagnostics to the server output with a correlation reference.
+ * Uses stderr on Node so handled RSC errors do not trigger the Next.js browser console.error overlay.
  */
 export function logServerError(context: string, error: unknown, refId?: string): void {
   const prefix = refId ? `[p-graph][error][ref:${refId}]` : "[p-graph][error]";
-  console.error(`${prefix} in ${context}:`, error);
+  const diagnostic = formatErrorDiagnostic(error);
+  if (typeof window === "undefined" && typeof process !== "undefined" && process.stderr?.write) {
+    process.stderr.write(`${prefix} in ${context}: ${diagnostic}\n`);
+    return;
+  }
+  console.warn(`${prefix} in ${context}: ${diagnostic}`);
 }
 
 const SENSITIVE_PATTERNS = [
@@ -56,6 +113,8 @@ const SENSITIVE_PATTERNS = [
   /\b(syntax error|violates foreign key|violates unique constraint|violates check constraint)\b/i,
   /\b(duplicate key value|null value in column)\b/i,
   /\b(PGRST\d{3}|42P\d{2}|23505|23503)\b/,
+  // Network / Runtime internals
+  /\b(typeerror|fetch failed|enotfound|econnrefused|etimedout|getaddrinfo)\b/i,
   // Auth / Keys / Environment
   /\b(jwt|bearer|signature|secret|token|apikey|api_key|password)\b/i,
   /\b(NEXT_PUBLIC_|SUPABASE_|CLERK_|OPENAI_|OPENROUTER_|GROQ_|LANGSMITH_)\w*/,
@@ -95,7 +154,7 @@ export function toUserFacingMessage(
     };
   }
 
-  const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const rawMessage = extractErrorMessage(error);
 
   // Common user-safe operational errors with friendly explanations
   if (rawMessage) {
