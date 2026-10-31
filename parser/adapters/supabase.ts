@@ -106,7 +106,7 @@ export const supabaseAdapter: FrameworkAdapter = {
     }
     if (
       /database\.types\.[jt]s$/.test(fileName) ||
-      /(^|\/)(schema|types)\/.*\.[jt]s$/.test(norm)
+      /(^|\/)supabase\/(?:.*\/)?(schema|types)\/.*\.[jt]s$/.test(norm)
     ) {
       return "Database types";
     }

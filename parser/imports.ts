@@ -164,7 +164,7 @@ export function extractPythonImports(
         .filter((n) => n.length > 0 && n !== "*");
 
       // Pure relative dots (`from . import a, b` or `from .. import a, b`):
-      // each imported identifier is a sibling/relative module candidate.
+      // each imported identifier is a sibling/relative module candidate or a package symbol.
       if (/^\.+$/.test(baseSpec)) {
         if (names.length === 0) {
           found.push({
@@ -173,7 +173,7 @@ export function extractPythonImports(
             specifier: baseSpec,
             typeOnly: false,
           });
-        } else {
+        } else if (!options?.isSubmodule) {
           for (const name of names) {
             found.push({
               kind,
@@ -181,6 +181,36 @@ export function extractPythonImports(
               specifier: `${baseSpec}${name}`,
               typeOnly: false,
               importedNames: [name],
+            });
+          }
+        } else {
+          const matchedSubmodules: string[] = [];
+          const remainingSymbols: string[] = [];
+          for (const name of names) {
+            if (options.isSubmodule(baseSpec, name)) {
+              matchedSubmodules.push(name);
+            } else {
+              remainingSymbols.push(name);
+            }
+          }
+
+          for (const sub of matchedSubmodules) {
+            found.push({
+              kind,
+              line: startLine,
+              specifier: `${baseSpec}${sub}`,
+              typeOnly: false,
+              importedNames: [sub],
+            });
+          }
+
+          if (remainingSymbols.length > 0) {
+            found.push({
+              kind,
+              line: startLine,
+              specifier: baseSpec,
+              typeOnly: false,
+              importedNames: remainingSymbols,
             });
           }
         }

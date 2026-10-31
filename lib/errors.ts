@@ -41,10 +41,20 @@ function generateErrorRef(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+const SAFE_STRUCTURED_ERROR_CODES: Readonly<Record<string, string>> = {
+  "429": "Request limit exceeded. Please wait a moment and try again.",
+};
+
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (typeof error === "object" && error !== null && "message" in error) {
+    if ("code" in error && typeof (error as { code?: unknown }).code === "string") {
+      const code = (error as { code: string }).code.trim();
+      if (code) {
+        return SAFE_STRUCTURED_ERROR_CODES[code] ?? "";
+      }
+    }
     const msg = (error as { message?: unknown }).message;
     if (typeof msg === "string") return msg;
   }
@@ -59,7 +69,8 @@ function formatErrorDiagnostic(error: unknown): string {
         : typeof error.cause === "string"
         ? ` | cause: ${error.cause}`
         : "";
-    return `${error.name}: ${error.message}${cause}`;
+    const stack = error.stack ? `\n${error.stack}` : "";
+    return `${error.name}: ${error.message}${cause}${stack}`;
   }
   if (typeof error === "string") return error;
   if (typeof error === "object" && error !== null) {

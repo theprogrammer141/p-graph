@@ -139,7 +139,7 @@ const PYTHON_STDLIB_MODULES = new Set([
   "pathlib",
   "pdb",
   "pickle",
-  " pickletools",
+  "pickletools",
   "pkgutil",
   "platform",
   "plistlib",

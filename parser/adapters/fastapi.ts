@@ -1,7 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
 import type { SourceFile } from "ts-morph";
 import type { ExtractedRoute, FrameworkAdapter } from "../adapter.ts";
+import {
+  extractBalancedParens,
+  hasPythonDependency,
+  joinRoutePath,
+} from "./shared.ts";
 
 const FASTAPI_METHODS: Readonly<Record<string, string>> = {
   get: "GET",
@@ -13,62 +16,12 @@ const FASTAPI_METHODS: Readonly<Record<string, string>> = {
   head: "HEAD",
 };
 
-function hasFastApiDependency(root: string): boolean {
-  const candidates = [
-    "pyproject.toml",
-    "requirements.txt",
-    "Pipfile",
-    "setup.py",
-    "setup.cfg",
-  ];
-  const pattern = /(^|[\s"'\n\[,=])fastapi($|[\s"'\n=,<>!~\[\]])/i;
-
-  for (const name of candidates) {
-    const filePath = path.join(/*turbopackIgnore: true*/ root, name);
-    if (existsSync(filePath)) {
-      try {
-        if (pattern.test(readFileSync(filePath, "utf8"))) return true;
-      } catch {
-        // ignore unreadable file
-      }
-    }
-  }
-
-  const reqDir = path.join(/*turbopackIgnore: true*/ root, "requirements");
-  if (existsSync(reqDir)) {
-    try {
-      for (const entry of readdirSync(reqDir)) {
-        if (entry.endsWith(".txt")) {
-          const content = readFileSync(
-            path.join(/*turbopackIgnore: true*/ reqDir, entry),
-            "utf8",
-          );
-          if (pattern.test(content)) return true;
-        }
-      }
-    } catch {
-      // ignore unreadable directory
-    }
-  }
-
-  return false;
-}
-
-function joinRoutePath(prefix: string, subpath: string): string {
-  const cleanPrefix = prefix.replace(/^\/+|\/+$/g, "");
-  const cleanSub = subpath.replace(/^\/+|\/+$/g, "");
-  if (!cleanPrefix && !cleanSub) return "/";
-  if (!cleanPrefix) return `/${cleanSub}`;
-  if (!cleanSub) return `/${cleanPrefix}`;
-  return `/${cleanPrefix}/${cleanSub}`;
-}
-
 export const fastapiAdapter: FrameworkAdapter = {
   name: "FastAPI",
 
   /** Recognizes FastAPI from Python dependency manifests. */
   detect(root: string): boolean {
-    return hasFastApiDependency(root);
+    return hasPythonDependency(root, "fastapi");
   },
 
   /** Excludes virtual environments, bytecode caches, hidden directories, and build outputs. */
@@ -159,14 +112,22 @@ export const fastapiAdapter: FrameworkAdapter = {
     if (!relPath.endsWith(".py") || !fileText) return [];
     const routes: ExtractedRoute[] = [];
 
-    // Map variable name -> literal prefix string (or null when prefix is dynamic)
+    // Map variable name -> literal prefix string (or null when prefix is dynamic/unparseable)
     const routerPrefixes = new Map<string, string | null>();
     for (const m of fileText.matchAll(
-      /^\s*([A-Za-z_]\w*)\s*=\s*(?:fastapi\.)?(FastAPI|APIRouter)\s*\(([\s\S]*?)\)/gm,
+      /^\s*([A-Za-z_]\w*)\s*=\s*(?:fastapi\.)?(FastAPI|APIRouter)\s*\(/gm,
     )) {
       const varName = m[1];
-      const argsText = m[3] ?? "";
-      const prefixProp = /\bprefix\s*=\s*([^\n,)]+)/.exec(argsText);
+      const openParenIndex = (m.index ?? 0) + m[0].length - 1;
+      const balanced = extractBalancedParens(fileText, openParenIndex);
+      if (!balanced) {
+        routerPrefixes.set(varName, null);
+        continue;
+      }
+      const argsText = balanced.content;
+      const prefixProp = /\bprefix\s*=\s*([fFrR]?"(?:\\.|[^"\\])*"|[fFrR]?'(?:\\.|[^'\\])*'|[^\n,)]+)/.exec(
+        argsText,
+      );
       if (!prefixProp) {
         routerPrefixes.set(varName, "");
       } else {

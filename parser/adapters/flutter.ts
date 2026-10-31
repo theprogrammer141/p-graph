@@ -11,7 +11,7 @@ export const flutterAdapter: FrameworkAdapter = {
   },
 
   /** Excludes platform runner folders, Dart tool state, and build outputs. */
-  excludeDirectory(_relPath: string, name: string): string | null {
+  excludeDirectory(relPath: string, name: string): string | null {
     if (name === "node_modules") return "dependencies (node_modules)";
     if (name.startsWith(".")) {
       if (name === ".dart_tool") return "build output (.dart_tool)";
@@ -26,12 +26,12 @@ export const flutterAdapter: FrameworkAdapter = {
       return `build output (${name})`;
     }
     if (
-      name === "ios" ||
-      name === "android" ||
-      name === "web" ||
-      name === "macos" ||
-      name === "linux" ||
-      name === "windows"
+      relPath === "ios" ||
+      relPath === "android" ||
+      relPath === "web" ||
+      relPath === "macos" ||
+      relPath === "linux" ||
+      relPath === "windows"
     ) {
       return `platform runner (${name})`;
     }

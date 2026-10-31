@@ -48,9 +48,9 @@ export const reactNativeAdapter: FrameworkAdapter = {
   },
 
   /** Excludes node_modules, native ios/android folders, Expo caches, and build outputs. */
-  excludeDirectory(_relPath: string, name: string): string | null {
+  excludeDirectory(relPath: string, name: string): string | null {
     if (name === "node_modules") return "dependencies (node_modules)";
-    if (name === "ios" || name === "android") {
+    if (relPath === "ios" || relPath === "android") {
       return `native platform project (${name})`;
     }
     if (name.startsWith(".")) {

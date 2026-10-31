@@ -1,51 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { ExtractedRoute, FrameworkAdapter } from "../adapter.ts";
-
-function hasPythonDependency(root: string, pkgName: string): boolean {
-  const candidates = [
-    "pyproject.toml",
-    "requirements.txt",
-    "Pipfile",
-    "setup.py",
-    "setup.cfg",
-  ];
-  const pattern = new RegExp(
-    `(^|[\\s"'\\n\\[,=])${pkgName}($|[\\s"'\\n=,<>!~\\[\\]])`,
-    "i",
-  );
-
-  for (const name of candidates) {
-    const filePath = path.join(/*turbopackIgnore: true*/ root, name);
-    if (existsSync(filePath)) {
-      try {
-        const content = readFileSync(filePath, "utf8");
-        if (pattern.test(content)) return true;
-      } catch {
-        // ignore unreadable file
-      }
-    }
-  }
-
-  const reqDir = path.join(/*turbopackIgnore: true*/ root, "requirements");
-  if (existsSync(reqDir)) {
-    try {
-      for (const entry of readdirSync(reqDir)) {
-        if (entry.endsWith(".txt")) {
-          const content = readFileSync(
-            path.join(/*turbopackIgnore: true*/ reqDir, entry),
-            "utf8",
-          );
-          if (pattern.test(content)) return true;
-        }
-      }
-    } catch {
-      // ignore unreadable requirements directory
-    }
-  }
-
-  return false;
-}
+import { hasPythonDependency } from "./shared.ts";
 
 export const djangoAdapter: FrameworkAdapter = {
   name: "Django",

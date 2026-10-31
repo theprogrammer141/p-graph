@@ -47,6 +47,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "hook", label: "Hooks", colorHex: "#c026d3" },
     { id: "service", label: "Services", colorHex: "#ea580c" },
     { id: "state", label: "State", colorHex: "#0d9488" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Flutter": [
     { id: "screen", label: "Screens", colorHex: "#7c3aed" },
@@ -54,6 +55,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "state", label: "State", colorHex: "#c026d3" },
     { id: "model", label: "Models", colorHex: "#ea580c" },
     { id: "service", label: "Services", colorHex: "#0d9488" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Django": [
     { id: "view", label: "Views", colorHex: "#7c3aed" },
@@ -65,6 +67,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "task", label: "Tasks", colorHex: "#6366f1" },
     { id: "middleware", label: "Middleware", colorHex: "#a855f7" },
     { id: "migration", label: "Migrations", colorHex: "#78716c" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "FastAPI": [
     { id: "router", label: "Routers", colorHex: "#7c3aed" },
@@ -74,6 +77,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "dependency", label: "Dependencies", colorHex: "#0d9488" },
     { id: "crud", label: "CRUD", colorHex: "#e11d48" },
     { id: "middleware", label: "Middleware", colorHex: "#6366f1" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Flask": [
     { id: "blueprint", label: "Blueprints", colorHex: "#7c3aed" },
@@ -81,6 +85,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "form", label: "Forms", colorHex: "#0891b2" },
     { id: "service", label: "Services", colorHex: "#c026d3" },
     { id: "extension", label: "Extensions", colorHex: "#0d9488" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Python": [
     { id: "entry-point", label: "Entry points", colorHex: "#7c3aed" },
@@ -89,6 +94,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "model", label: "Models", colorHex: "#ea580c" },
     { id: "util", label: "Utils", colorHex: "#0d9488" },
     { id: "config", label: "Config", colorHex: "#6366f1" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   ".NET": [
     { id: "controller", label: "Controllers", colorHex: "#e11d48" },
@@ -97,6 +103,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "repository", label: "Repositories", colorHex: "#0891b2" },
     { id: "model", label: "Models", colorHex: "#ea580c" },
     { id: "middleware", label: "Middleware", colorHex: "#0d9488" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Supabase": [
     { id: "edge-function", label: "Edge functions", colorHex: "#7c3aed" },
@@ -105,6 +112,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "database-types", label: "Database types", colorHex: "#ea580c" },
     { id: "component", label: "Components", colorHex: "#0d9488" },
     { id: "hook", label: "Hooks", colorHex: "#6366f1" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "Firebase": [
     { id: "cloud-function", label: "Cloud functions", colorHex: "#7c3aed" },
@@ -112,6 +120,7 @@ export const FRAMEWORK_TAXONOMIES: Readonly<Record<string, readonly TaxonomyCate
     { id: "service", label: "Services", colorHex: "#c026d3" },
     { id: "component", label: "Components", colorHex: "#0891b2" },
     { id: "hook", label: "Hooks", colorHex: "#0d9488" },
+    { id: "generic", label: "Generic", colorHex: "#71717a" },
   ],
   "none": [
     { id: "generic", label: "Generic", colorHex: "#71717a" },

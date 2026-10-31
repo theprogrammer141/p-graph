@@ -139,7 +139,7 @@ function detectCyclesIterative(
  * Pages, routes, layouts, middleware and configs are reached by the framework
  * and must not be marked as unused or orphan.
  */
-function isFrameworkReached(filePath: string): boolean {
+function isFrameworkReached(filePath: string, adapter?: string): boolean {
   const norm = filePath.replace(/\\/g, "/");
 
   // Middleware and Next 16 proxy convention
@@ -154,9 +154,11 @@ function isFrameworkReached(filePath: string): boolean {
     return true;
   }
 
-  // Django / Python / .NET / BaaS framework-invoked files
+  // Django / Python / .NET / BaaS framework-invoked entry points
   if (
-    /(^|\/)(migrations|supabase\/functions|functions\/src)\//.test(norm) ||
+    /(^|\/)migrations\//.test(norm) ||
+    /(^|\/)supabase\/functions\/[^/]+\/index\.[mc]?[jt]sx?$/.test(norm) ||
+    /(^|\/)functions\/(?:src\/)?index\.[mc]?[jt]sx?$/.test(norm) ||
     /(^|\/)(admin|urls|wsgi|asgi|manage)\.py$/.test(norm) ||
     /Controller\.cs$/.test(norm)
   ) {
@@ -167,9 +169,13 @@ function isFrameworkReached(filePath: string): boolean {
   const identified = identifyConvention(filePath);
   if (!identified) return false;
 
+  const isAutoDiscoveredController =
+    identified.role === "controller" &&
+    (adapter === ".NET" || adapter === "NestJS" || norm.endsWith(".cs"));
+
   return (
     identified.role === "route" ||
-    identified.role === "controller" ||
+    isAutoDiscoveredController ||
     identified.role === "config" ||
     identified.role === "entry" ||
     identified.role === "script"
@@ -214,11 +220,12 @@ export const INSIGHT_SENTENCES = {
  */
 export function buildInsights(
   files: readonly FileNode[],
-  edges: readonly Edge[]
+  edges: readonly Edge[],
+  adapter?: string
 ): RepoInsights {
   // 1. Files nothing imports (excluding framework-reached files)
   const zeroInFiles = files
-    .filter((f) => f.fanIn === 0 && !isFrameworkReached(f.path))
+    .filter((f) => f.fanIn === 0 && !isFrameworkReached(f.path, adapter))
     .sort((a, b) => b.fanOut - a.fanOut || (a.path < b.path ? -1 : 1));
 
   const zeroInGroup: InsightGroup = {

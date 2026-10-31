@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { SourceFile } from "ts-morph";
 import type { ExtractedRoute, FrameworkAdapter } from "../adapter.ts";
+import { joinRoutePath } from "./shared.ts";
 
 const DOTNET_HTTP_ATTRIBUTES: Readonly<Record<string, string>> = {
   HttpGet: "GET",
@@ -45,15 +46,6 @@ function resolveControllerToken(
     return template.replace(/\[controller\]/gi, controllerShortName.toLowerCase());
   }
   return template;
-}
-
-function joinDotnetPath(prefix: string, subpath: string): string {
-  const cleanPrefix = prefix.replace(/^\/+|\/+$/g, "");
-  const cleanSub = subpath.replace(/^\/+|\/+$/g, "");
-  if (!cleanPrefix && !cleanSub) return "/";
-  if (!cleanPrefix) return `/${cleanSub}`;
-  if (!cleanSub) return `/${cleanPrefix}`;
-  return `/${cleanPrefix}/${cleanSub}`;
 }
 
 export const dotnetAdapter: FrameworkAdapter = {
@@ -169,7 +161,7 @@ export const dotnetAdapter: FrameworkAdapter = {
     // Locate controller class header and attributes immediately preceding it.
     // Attribute bodies may contain quoted strings with bracket tokens like "[controller]".
     const classRegex =
-      /((?:\s*\[(?:[^\]"]|"(?:\\.|[^"\\])*")+\]\s*)*)\bpublic\s+(?:sealed\s+|abstract\s+|partial\s+)*class\s+([A-Za-z_]\w*)/g;
+      /((?:\[(?:[^\]"]|"(?:\\.|[^"\\])*")+\]\s*)*)\bpublic\s+(?:sealed\s+|abstract\s+|partial\s+)*class\s+([A-Za-z_]\w*)/g;
 
     for (const classMatch of fileText.matchAll(classRegex)) {
       const classAttrs = classMatch[1] ?? "";
@@ -224,6 +216,26 @@ export const dotnetAdapter: FrameworkAdapter = {
         const httpMethod = DOTNET_HTTP_ATTRIBUTES[attrName];
         if (!httpMethod) continue;
 
+        // Skip methods that also carry a method-level [Route(...)] attribute
+        // (either before or after the HTTP verb attribute on the same method).
+        const matchStart = verbMatch.index ?? 0;
+        const matchEnd = matchStart + verbMatch[0].length;
+        const precedingAttrs =
+          /(?:\[(?:[^\]"]|"(?:\\.|[^"\\])*")+\]\s*)+$/.exec(
+            classBody.slice(0, matchStart),
+          )?.[0] ?? "";
+        const followingAttrs =
+          /^(?:\s*\[(?:[^\]"]|"(?:\\.|[^"\\])*")+\])+/.exec(
+            classBody.slice(matchEnd),
+          )?.[0] ?? "";
+        const methodRoutePattern = /(?:\[|,)\s*Route(?:Attribute)?\s*(?:\(|\]|,)/;
+        if (
+          methodRoutePattern.test(precedingAttrs) ||
+          methodRoutePattern.test(followingAttrs)
+        ) {
+          continue;
+        }
+
         let subTemplate = "";
         if (rawArg && rawArg.length > 0) {
           const litMatch = /^@?"([^"]*)"$/.exec(rawArg);
@@ -236,9 +248,11 @@ export const dotnetAdapter: FrameworkAdapter = {
           subTemplate = resolvedSub;
         }
 
-        const fullPath = subTemplate.startsWith("/")
-          ? joinDotnetPath("", subTemplate)
-          : joinDotnetPath(classPrefix, subTemplate);
+        const fullPath = subTemplate.startsWith("~/")
+          ? joinRoutePath("", subTemplate.slice(1))
+          : subTemplate.startsWith("/")
+            ? joinRoutePath("", subTemplate)
+            : joinRoutePath(classPrefix, subTemplate);
 
         routes.push({
           filePath: relPath,

@@ -109,7 +109,10 @@ export function WorkspaceShell({
     [effectiveFiles, edges, repoName, adapter, routes.length],
   );
 
-  const insights = useMemo(() => buildInsights(effectiveFiles, edges), [effectiveFiles, edges]);
+  const insights = useMemo(
+    () => buildInsights(effectiveFiles, edges, adapter),
+    [effectiveFiles, edges, adapter],
+  );
 
   const fileDetail = useMemo(
     () =>

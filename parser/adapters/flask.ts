@@ -1,7 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
 import type { SourceFile } from "ts-morph";
 import type { ExtractedRoute, FrameworkAdapter } from "../adapter.ts";
+import {
+  extractBalancedParens,
+  hasPythonDependency,
+  joinRoutePath,
+} from "./shared.ts";
 
 const FLASK_SHORTHAND_METHODS: Readonly<Record<string, string>> = {
   get: "GET",
@@ -11,62 +14,12 @@ const FLASK_SHORTHAND_METHODS: Readonly<Record<string, string>> = {
   patch: "PATCH",
 };
 
-function hasFlaskDependency(root: string): boolean {
-  const candidates = [
-    "pyproject.toml",
-    "requirements.txt",
-    "Pipfile",
-    "setup.py",
-    "setup.cfg",
-  ];
-  const pattern = /(^|[\s"'\n\[,=])flask($|[\s"'\n=,<>!~\[\]])/i;
-
-  for (const name of candidates) {
-    const filePath = path.join(/*turbopackIgnore: true*/ root, name);
-    if (existsSync(filePath)) {
-      try {
-        if (pattern.test(readFileSync(filePath, "utf8"))) return true;
-      } catch {
-        // ignore unreadable file
-      }
-    }
-  }
-
-  const reqDir = path.join(/*turbopackIgnore: true*/ root, "requirements");
-  if (existsSync(reqDir)) {
-    try {
-      for (const entry of readdirSync(reqDir)) {
-        if (entry.endsWith(".txt")) {
-          const content = readFileSync(
-            path.join(/*turbopackIgnore: true*/ reqDir, entry),
-            "utf8",
-          );
-          if (pattern.test(content)) return true;
-        }
-      }
-    } catch {
-      // ignore unreadable directory
-    }
-  }
-
-  return false;
-}
-
-function joinFlaskPath(prefix: string, subpath: string): string {
-  const cleanPrefix = prefix.replace(/^\/+|\/+$/g, "");
-  const cleanSub = subpath.replace(/^\/+|\/+$/g, "");
-  if (!cleanPrefix && !cleanSub) return "/";
-  if (!cleanPrefix) return `/${cleanSub}`;
-  if (!cleanSub) return `/${cleanPrefix}`;
-  return `/${cleanPrefix}/${cleanSub}`;
-}
-
 export const flaskAdapter: FrameworkAdapter = {
   name: "Flask",
 
   /** Recognizes Flask from Python dependency manifests. */
   detect(root: string): boolean {
-    return hasFlaskDependency(root);
+    return hasPythonDependency(root, "flask");
   },
 
   /** Excludes virtual environments, bytecode caches, hidden directories, instance, and build outputs. */
@@ -151,16 +104,24 @@ export const flaskAdapter: FrameworkAdapter = {
 
     const prefixes = new Map<string, string | null>();
     for (const m of fileText.matchAll(
-      /^\s*([A-Za-z_]\w*)\s*=\s*(?:flask\.)?(Flask|Blueprint)\s*\(([\s\S]*?)\)/gm,
+      /^\s*([A-Za-z_]\w*)\s*=\s*(?:flask\.)?(Flask|Blueprint)\s*\(/gm,
     )) {
       const varName = m[1];
       const kind = m[2];
-      const argsText = m[3] ?? "";
+      const openParenIndex = (m.index ?? 0) + m[0].length - 1;
+      const balanced = extractBalancedParens(fileText, openParenIndex);
+      if (!balanced) {
+        prefixes.set(varName, null);
+        continue;
+      }
       if (kind === "Flask") {
         prefixes.set(varName, "");
         continue;
       }
-      const prefixProp = /\burl_prefix\s*=\s*([^\n,)]+)/.exec(argsText);
+      const argsText = balanced.content;
+      const prefixProp = /\burl_prefix\s*=\s*([fFrR]?"(?:\\.|[^"\\])*"|[fFrR]?'(?:\\.|[^'\\])*'|[^\n,)]+)/.exec(
+        argsText,
+      );
       if (!prefixProp) {
         prefixes.set(varName, "");
       } else {
@@ -171,12 +132,18 @@ export const flaskAdapter: FrameworkAdapter = {
     }
 
     // 1. `@var.route("/literal", ...)`
-    for (const m of fileText.matchAll(
-      /^\s*@([A-Za-z_]\w*)\.route\s*\(\s*([fFrR]?["'][^"']*["'])([\s\S]*?)\)/gm,
-    )) {
+    for (const m of fileText.matchAll(/^\s*@([A-Za-z_]\w*)\.route\s*\(/gm)) {
       const varName = m[1];
-      const rawPathArg = m[2];
-      const restArgs = m[3] ?? "";
+      const openParenIndex = (m.index ?? 0) + m[0].length - 1;
+      const balanced = extractBalancedParens(fileText, openParenIndex);
+      if (!balanced) continue;
+
+      const pathArgMatch = /^\s*(?:rule\s*=\s*)?([fFrR]?["'][^"']*["'])([\s\S]*)$/.exec(
+        balanced.content,
+      );
+      if (!pathArgMatch) continue;
+      const rawPathArg = pathArgMatch[1];
+      const restArgs = pathArgMatch[2] ?? "";
 
       const prefix = prefixes.get(varName);
       if (prefix === undefined || prefix === null) continue;
@@ -184,7 +151,7 @@ export const flaskAdapter: FrameworkAdapter = {
       const litMatch = /^r?(["'])([^"']*)\1$/i.exec(rawPathArg);
       if (!litMatch) continue;
 
-      const fullPath = joinFlaskPath(prefix, litMatch[2]);
+      const fullPath = joinRoutePath(prefix, litMatch[2]);
       const methodsMatch = /\bmethods\s*=\s*(\[[^\]]*\]|\([^)]*\))/.exec(restArgs);
       if (!methodsMatch) {
         routes.push({ filePath: relPath, method: "GET", path: fullPath });
@@ -228,7 +195,7 @@ export const flaskAdapter: FrameworkAdapter = {
       const litMatch = /^r?(["'])([^"']*)\1$/i.exec(rawPathArg);
       if (!litMatch) continue;
 
-      const fullPath = joinFlaskPath(prefix, litMatch[2]);
+      const fullPath = joinRoutePath(prefix, litMatch[2]);
       routes.push({ filePath: relPath, method: httpMethod, path: fullPath });
     }
 
